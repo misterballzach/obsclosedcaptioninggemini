@@ -17,6 +17,30 @@ find_package(ObsFrontendApi REQUIRED) # Using our custom finder or standard if a
 find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
 find_package(Threads REQUIRED)
 
+# --- SAFETY CHECK: Detect MSVC + MinGW Qt Mismatch ---
+if(MSVC)
+    if("${Qt6_DIR}" MATCHES "mingw")
+        message(FATAL_ERROR
+            "\n\n"
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            "CRITICAL CONFIGURATION ERROR DETECTED:\n"
+            "You are using the MSVC Compiler (Visual Studio), but you have pointed CMake to a MinGW version of Qt.\n"
+            "\n"
+            "Your Qt path: ${Qt6_DIR}\n"
+            "\n"
+            "THIS WILL NOT BUILD. The libraries are incompatible.\n"
+            "\n"
+            "SOLUTION:\n"
+            "1. Open the 'Qt Maintenance Tool'.\n"
+            "2. Install the 'MSVC 2019 64-bit' (or MSVC 2022) component for Qt 6.\n"
+            "3. Re-configure CMake and point Qt6_DIR to the MSVC folder (e.g., C:/Qt/6.x.x/msvc2019_64).\n"
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+            "\n"
+        )
+    endif()
+endif()
+# -----------------------------------------------------
+
 include_directories(${LIBOBS_INCLUDE_DIRS})
 include_directories(${OBS_FRONTEND_API_INCLUDE_DIRS})
 

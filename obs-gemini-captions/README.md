@@ -25,7 +25,8 @@ We are assuming you are on Windows because that's what most streamers use.
     *   Run it, log in.
     *   In the "Select Components" screen:
         *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.6 or 6.7).
-        *   Check **MSVC 2019 64-bit** (or MSVC 2022 if available).
+        *   **CRITICAL:** You must check **MSVC 2019 64-bit** (or MSVC 2022).
+        *   **DO NOT** select "MinGW". If you use MinGW with Visual Studio, it will break.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
@@ -62,7 +63,7 @@ We are assuming you are on Windows because that's what most streamers use.
         *   Click the empty/red box next to **LIBOBS_INCLUDE_DIR**. Click the "..." button.
         *   Browse to the folder `libobs` inside where you downloaded OBS (e.g., `C:\obs-studio\libobs`). It should have `obs.h` inside it.
         *   Click the box next to **LIBOBS_LIB**.
-        *   Browse to the `obs.lib` file. (If you downloaded the source zip, you might not have this file! You need to build OBS first or download the "OBS Studio SDK" zip).
+        *   **IMPORTANT:** This must point to a FILE (e.g., `obs.lib`), NOT a FOLDER. If you point it to a folder, CMake might say "Configuring done" but the build will fail later.
     *   **Fix ObsFrontendApi:**
         *   If `OBS_FRONTEND_API_INCLUDE_DIR` is red/not found:
             *   Browse to `C:\obs-studio\UI\obs-frontend-api` (Source Code) OR `C:\obs-sdk\include` (SDK). Look for `obs-frontend-api.h`.
@@ -70,6 +71,7 @@ We are assuming you are on Windows because that's what most streamers use.
             *   Browse to `C:\obs-studio\build\UI\obs-frontend-api\Release\obs-frontend-api.lib` (Build) OR `C:\obs-sdk\bin\64bit\obs-frontend-api.lib` (SDK).
     *   **Fix Qt6:**
         *   If `Qt6_DIR` is red, browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
+        *   **WARNING:** If this path says `mingw`, STOP. You installed the wrong Qt version. See "Part 1".
     *   **Click Configure again** until the red text turns white and the error at the bottom goes away.
 
 5.  **Click "Generate"**
@@ -134,11 +136,20 @@ You built it! Now you have to install it manually.
 
 ---
 
-## Troubleshooting
+## Common Mistakes & Troubleshooting
 
-*   **"CMake Error: Could not find LibObs or ObsFrontendApi"**: This means CMake doesn't know where the files are. Click the red boxes and verify the paths. `obs-frontend-api.h` is tricky; try looking in `UI/obs-frontend-api` of the source code.
+*   **"Qt6_DIR points to mingw_64"**:
+    *   **Problem:** You installed the "MinGW" version of Qt, but you are using Visual Studio (MSVC). They are enemies.
+    *   **Fix:** Uninstall MinGW Qt. Install **MSVC 2019 64-bit** Qt. Update the path in CMake.
+
+*   **"LIBOBS_LIB points to a folder"**:
+    *   **Problem:** CMake shows "Configuring done", but the build fails with link errors.
+    *   **Fix:** In CMake, `LIBOBS_LIB` must point to a file ending in `.lib` (e.g., `obs.lib`), not just the folder it's in.
+
+*   **"Could NOT find WrapVulkanHeaders"**:
+    *   **Status:** Ignore this. It's a warning from Qt. It won't stop the build.
+
 *   **"It crashes!"**: You probably didn't copy the `locale` folder correctly. OBS hates it when plugins don't have text files.
-*   **"No audio!"**: Make sure you selected the right microphone in the settings.
 *   **"Twitch bot not working!"**: Make sure your token starts with `oauth:` and is valid.
 
 Good luck!
