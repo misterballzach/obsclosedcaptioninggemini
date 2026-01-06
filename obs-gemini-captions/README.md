@@ -51,11 +51,14 @@ We are assuming you are on Windows because that's what most streamers use.
 4.  **Configure:**
     *   Select **Visual Studio 17 2022**.
     *   Platform: **x64**.
-5.  **Fix Errors:**
+5.  **Fix Errors (First Run):**
     *   Set `LIBOBS_INCLUDE_DIR` to `C:\obs-sdk\include\libobs`.
     *   Set `LIBOBS_LIB` to `C:\obs-sdk\bin\64bit\obs.lib`.
     *   Set `Qt6_DIR` to your Qt MSVC folder (e.g., `C:\Qt\6.10.1\msvc2022_64\lib\cmake\Qt6`).
-6.  **Generate** -> **Open Project** -> Build in Visual Studio.
+6.  **Click Configure Again.**
+    *   **"Configuring done"** is what you want to see.
+    *   *Note:* You might see red text about `pthread` or `Vulkan`. **Ignore this.** As long as it says "Configuring done" at the bottom, you are safe.
+7.  **Generate** -> **Open Project** -> Build in Visual Studio.
 
 ---
 
@@ -85,6 +88,7 @@ We are assuming you are on Windows because that's what most streamers use.
 
 1.  **Find the `.dll` file**
     *   Copy `obs-gemini-captions.dll` from your build folder.
+    *   (Usually in `build/Release` or just `build`).
 2.  **Go to OBS Install Folder**
     *   `C:\Program Files\obs-studio\obs-plugins\64bit`.
     *   Paste the `.dll`.
@@ -105,8 +109,14 @@ We are assuming you are on Windows because that's what most streamers use.
 
 ## Troubleshooting
 
+*   **"Configuring done" but I see red text!**:
+    *   If the red text is `pthread` failed or `Vulkan` not found, **Ignore it**. This is normal on Windows.
+    *   If the text is `Could NOT find LibObs`, you need to fix your paths.
+
+*   **"CRITICAL CONFIGURATION ERROR: You selected a SOURCE CODE file"**:
+    *   You pointed CMake to `obs.h` or `obs.c` instead of `obs.lib`.
+    *   Download the **OBS SDK** (not Source Code) and point to `bin/64bit/obs.lib`.
+
 *   **"Qt6_DIR points to mingw_64"**: Use "MinGW Makefiles" generator in CMake.
-*   **"LIBOBS_LIB points to a folder"**: Point to the `.lib` file.
-*   **"Plugin fails to load"**: If you built with MinGW, this is likely an incompatibility with OBS Studio (MSVC). You might need to build OBS from source using MinGW to use this plugin.
 
 Good luck!

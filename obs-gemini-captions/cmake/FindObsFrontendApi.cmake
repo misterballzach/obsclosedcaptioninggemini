@@ -30,6 +30,22 @@ find_path(OBS_FRONTEND_API_INCLUDE_DIR
     DOC "Path to obs-frontend-api include directory"
 )
 
+if(OBS_FRONTEND_API_LIB)
+    get_filename_component(LIB_EXT "${OBS_FRONTEND_API_LIB}" EXT)
+    if(LIB_EXT MATCHES "\\.(h|hpp|c|cpp|txt)$")
+        message(FATAL_ERROR "
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        CRITICAL CONFIGURATION ERROR:
+        You selected a SOURCE CODE file ('${OBS_FRONTEND_API_LIB}') for the Frontend API Library.
+
+        CMake expects a compiled library file (ending in .lib on Windows).
+
+        Please download the OBS Studio SDK Artifacts from GitHub Actions.
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ")
+    endif()
+endif()
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(ObsFrontendApi
     REQUIRED_VARS OBS_FRONTEND_API_LIB OBS_FRONTEND_API_INCLUDE_DIR

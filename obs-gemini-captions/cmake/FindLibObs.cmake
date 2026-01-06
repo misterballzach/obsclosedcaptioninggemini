@@ -23,6 +23,29 @@ find_library(LIBOBS_LIB
     DOC "Path to obs library (look for obs.lib or libobs.so)"
 )
 
+if(LIBOBS_LIB)
+    get_filename_component(LIB_EXT "${LIBOBS_LIB}" EXT)
+    if(LIB_EXT MATCHES "\\.(h|hpp|c|cpp|txt)$")
+        message(FATAL_ERROR "
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        CRITICAL CONFIGURATION ERROR:
+        You selected a SOURCE CODE file ('${LIBOBS_LIB}') for the Library variable.
+
+        CMake expects a compiled library file (ending in .lib on Windows, .so on Linux).
+
+        This error usually means you downloaded the OBS Source Code ZIP instead of the SDK.
+        The Source Code zip does NOT contain the required .lib files.
+
+        SOLUTION:
+        1. Go to https://github.com/obsproject/obs-studio/actions
+        2. Click the latest successful run.
+        3. Scroll down to Artifacts and download 'windows-x64-sdk'.
+        4. Point LIBOBS_LIB to 'bin/64bit/obs.lib' inside that extracted SDK folder.
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ")
+    endif()
+endif()
+
 if(NOT LIBOBS_LIB)
     message(WARNING "
     -------------------------------------------------------------------------
