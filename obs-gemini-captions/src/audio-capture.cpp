@@ -1,6 +1,8 @@
 #include "audio-capture.h"
 #include "gemini-client.h"
 #include <obs.h>
+#include <media-io/audio-resampler.h>
+#include <media-io/audio-io.h>
 #include <vector>
 #include <mutex>
 #include <thread>

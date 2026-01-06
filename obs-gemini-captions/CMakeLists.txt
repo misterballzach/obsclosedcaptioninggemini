@@ -53,5 +53,14 @@ elseif(WIN32)
 endif()
 
 # Install locale data
-install(DIRECTORY data/locale DESTINATION "${CMAKE_INSTALL_PREFIX}/obs-plugins/64bit/../data/obs-plugins/obs-gemini-captions")
-install(TARGETS obs-gemini-captions DESTINATION "${CMAKE_INSTALL_PREFIX}/obs-plugins/64bit")
+# Standard OBS data path: data/obs-plugins/plugin-name
+install(DIRECTORY data/locale DESTINATION "data/obs-plugins/obs-gemini-captions")
+
+# Install binary
+if(WIN32)
+    install(TARGETS obs-gemini-captions DESTINATION "obs-plugins/64bit")
+else()
+    # Linux/Mac usually use lib/obs-plugins or similar, but CMAKE_INSTALL_PREFIX usually points to the OBS root or a staging dir.
+    # We'll use a standard relative path.
+    install(TARGETS obs-gemini-captions DESTINATION "obs-plugins/64bit")
+endif()
