@@ -37,12 +37,16 @@ void AudioCapture::startCapture(const QString &sourceName) {
     if (source) {
         currentAudioSource = source;
 
-        cachedSampleRate = obs_source_get_sample_rate(source);
-        cachedSpeakers = obs_source_get_speaker_layout(source);
+        // Use Global Audio Info (OBS 32+)
+        struct audio_output_info info = {};
+        audio_output_get_info(obs_get_audio(), &info);
+
+        cachedSampleRate = info.samples_per_sec;
+        cachedSpeakers = info.speakers;
 
         qDebug() << "Started audio capture on source:" << sourceName
-                 << "Rate:" << cachedSampleRate
-                 << "Layout:" << cachedSpeakers;
+                 << "Global Rate:" << cachedSampleRate
+                 << "Global Layout:" << cachedSpeakers;
 
         obs_source_add_audio_capture_callback(source, audioCallback, this);
         capturing = true;
@@ -72,10 +76,8 @@ void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *d
         return;
     }
 
-    // Naive Float to Int16 Conversion (No Resampling for now)
+    // Naive Float to Int16 Conversion
     // We assume the Gemini Client will handle the sample rate in header, or the API is tolerant.
-    // Ideally we should resample, but we removed libobs resampler usage.
-    // For now, we will just take the first channel and convert to int16.
 
     // NOTE: OBS audio is planar float. data->data[0] is channel 1.
     const float* floatSamples = (const float*)data->data[0];
@@ -94,25 +96,12 @@ void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *d
     audioBuffer.insert(audioBuffer.end(), newSamples.begin(), newSamples.end());
 
     // Check size (Target 5 seconds approx)
-    // If we are at 44.1kHz, 5s = 220500 samples
     size_t targetSamples = (size_t)(5.0 * cachedSampleRate);
 
     if (audioBuffer.size() >= targetSamples) {
         // Emit
         int byteSize = audioBuffer.size() * sizeof(int16_t);
         QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
-
-        // We need to pass the Sample Rate so the WAV header is correct!
-        // The signal only passes byte array. We should include rate?
-        // Or we assume the receiver knows?
-        // Let's modify the emission to assume cachedSampleRate.
-        // But the signal signature is fixed in header.
-        // We will just emit. The lambda in StartAudioCapture knows the rate? No, it's a static lambda.
-        // We need to pass rate.
-        // For minimal changes: We will re-use the signal but maybe prepend metadata? No.
-        // Let's just update the signal in header to include rate, or pass it.
-        // Ah, audioPacketReady(QByteArray) is what we have.
-        // We should add rate to signal.
 
         emit audioPacketReady(pcmData, (int)cachedSampleRate);
 

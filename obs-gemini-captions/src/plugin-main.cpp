@@ -301,8 +301,10 @@ void GeminiCaptionsDialog::onToggleStartStop()
     }
 }
 
-static void ShowConfig()
+// Fixed signature for OBS 32.0.4 callback (takes void* data)
+static void ShowConfig(void *data)
 {
+    Q_UNUSED(data);
     QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
     if (settingsDialog) {
         settingsDialog->raise();
@@ -315,14 +317,17 @@ static void ShowConfig()
 
 bool obs_module_load(void)
 {
-    obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig);
+    // Updated signature: name, callback, private_data
+    obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig, nullptr);
 
-    // Create Dock
-    QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
-    captionDock = new CaptionDock(main);
-    obs_frontend_add_dock(captionDock);
+    // Create Dock - DISABLED for OBS 32.0.4 compatibility (api removed)
+    // QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
+    // captionDock = new CaptionDock(main);
+    // obs_frontend_add_dock(captionDock);
 
     // Initialize Twitch Bot (lived on main thread)
+    // We need a parent. obs_frontend_get_main_window is still available if header is included.
+    QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
     twitchBot = new TwitchBot(main);
 
     // Load initial settings
