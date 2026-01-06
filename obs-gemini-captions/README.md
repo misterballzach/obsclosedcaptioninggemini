@@ -63,6 +63,11 @@ We are assuming you are on Windows because that's what most streamers use.
         *   Browse to the folder `libobs` inside where you downloaded OBS (e.g., `C:\obs-studio\libobs`). It should have `obs.h` inside it.
         *   Click the box next to **LIBOBS_LIB**.
         *   Browse to the `obs.lib` file. (If you downloaded the source zip, you might not have this file! You need to build OBS first or download the "OBS Studio SDK" zip).
+    *   **Fix ObsFrontendApi:**
+        *   If `OBS_FRONTEND_API_INCLUDE_DIR` is red/not found:
+            *   Browse to `C:\obs-studio\UI\obs-frontend-api` (Source Code) OR `C:\obs-sdk\include` (SDK). Look for `obs-frontend-api.h`.
+        *   If `OBS_FRONTEND_API_LIB` is red/not found:
+            *   Browse to `C:\obs-studio\build\UI\obs-frontend-api\Release\obs-frontend-api.lib` (Build) OR `C:\obs-sdk\bin\64bit\obs-frontend-api.lib` (SDK).
     *   **Fix Qt6:**
         *   If `Qt6_DIR` is red, browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
     *   **Click Configure again** until the red text turns white and the error at the bottom goes away.
@@ -131,7 +136,7 @@ You built it! Now you have to install it manually.
 
 ## Troubleshooting
 
-*   **"CMake Error: Could not find LibObs"**: This matches the error you saw. It simply means you need to click the `LIBOBS_INCLUDE_DIR` row in CMake and point it to the correct folder on your hard drive, then do the same for `LIBOBS_LIB`.
+*   **"CMake Error: Could not find LibObs or ObsFrontendApi"**: This means CMake doesn't know where the files are. Click the red boxes and verify the paths. `obs-frontend-api.h` is tricky; try looking in `UI/obs-frontend-api` of the source code.
 *   **"It crashes!"**: You probably didn't copy the `locale` folder correctly. OBS hates it when plugins don't have text files.
 *   **"No audio!"**: Make sure you selected the right microphone in the settings.
 *   **"Twitch bot not working!"**: Make sure your token starts with `oauth:` and is valid.

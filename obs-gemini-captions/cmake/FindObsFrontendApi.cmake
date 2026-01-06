@@ -9,6 +9,13 @@ set(OBS_SEARCH_PATHS
     "/usr/local/include/obs"
 )
 
+# Use LibObs location as a hint if found
+if(LIBOBS_INCLUDE_DIR)
+    get_filename_component(_OBS_ROOT_FROM_INC "${LIBOBS_INCLUDE_DIR}" DIRECTORY) # Parent of libobs include
+    list(APPEND OBS_SEARCH_PATHS "${_OBS_ROOT_FROM_INC}")
+    list(APPEND OBS_SEARCH_PATHS "${_OBS_ROOT_FROM_INC}/..") # Parent of include
+endif()
+
 find_library(OBS_FRONTEND_API_LIB
     NAMES obs-frontend-api
     HINTS ${OBS_SEARCH_PATHS}
@@ -19,7 +26,7 @@ find_library(OBS_FRONTEND_API_LIB
 find_path(OBS_FRONTEND_API_INCLUDE_DIR
     NAMES obs-frontend-api.h
     HINTS ${OBS_SEARCH_PATHS}
-    PATH_SUFFIXES obs-frontend-api include/obs-frontend-api UI/obs-frontend-api
+    PATH_SUFFIXES obs-frontend-api include/obs-frontend-api UI/obs-frontend-api include
     DOC "Path to obs-frontend-api include directory"
 )
 
