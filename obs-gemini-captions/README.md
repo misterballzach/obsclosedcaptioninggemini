@@ -23,8 +23,8 @@ We are assuming you are on Windows because that's what most streamers use.
     *   Download the "Online Installer": [https://www.qt.io/download-qt-installer](https://www.qt.io/download-qt-installer)
     *   Run it, log in.
     *   In the "Select Components" screen:
-        *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.6 or 6.7).
-        *   **RECOMMENDED:** Check **MSVC 2019 64-bit** (or MSVC 2022).
+        *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.10 or 6.8).
+        *   **RECOMMENDED:** Check **MSVC 2022 64-bit**.
         *   **IF YOU MUST USE MINGW:** See the "MinGW Users" section below.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
@@ -54,7 +54,7 @@ We are assuming you are on Windows because that's what most streamers use.
 5.  **Fix Errors:**
     *   Set `LIBOBS_INCLUDE_DIR` to `C:\obs-sdk\include\libobs`.
     *   Set `LIBOBS_LIB` to `C:\obs-sdk\bin\64bit\obs.lib`.
-    *   Set `Qt6_DIR` to your Qt MSVC folder (e.g., `C:\Qt\6.10.0\msvc2019_64\lib\cmake\Qt6`).
+    *   Set `Qt6_DIR` to your Qt MSVC folder (e.g., `C:\Qt\6.10.1\msvc2022_64\lib\cmake\Qt6`).
 6.  **Generate** -> **Open Project** -> Build in Visual Studio.
 
 ---
