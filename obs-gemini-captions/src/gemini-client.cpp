@@ -1,7 +1,6 @@
 #include "gemini-client.h"
 #include "plugin-main.h"
 #include "caption-output.h"
-#include <curl/curl.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -9,8 +8,13 @@
 #include <iomanip>
 #include <obs.h>
 #include <thread>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QNetworkRequest>
+#include <QUrl>
 
-// Simple Base64 encoder
+// Simple Base64 encoder (still useful, or use QByteArray::toBase64)
 static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
              "abcdefghijklmnopqrstuvwxyz"
@@ -56,115 +60,96 @@ std::string base64_encode(unsigned char const* bytes_to_encode, unsigned int in_
   return ret;
 }
 
-// Write callback for libcurl
-size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
-{
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
+std::string ExtractTextFromJson(const std::string& json) {
+    // We can use Qt JSON parser now
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
+    if (doc.isNull()) return "";
+
+    QJsonObject root = doc.object();
+    QJsonArray candidates = root["candidates"].toArray();
+    if (candidates.isEmpty()) return "";
+
+    QJsonObject candidate = candidates[0].toObject();
+    QJsonObject content = candidate["content"].toObject();
+    QJsonArray parts = content["parts"].toArray();
+    if (parts.isEmpty()) return "";
+
+    QJsonObject part = parts[0].toObject();
+    return part["text"].toString().toStdString();
 }
 
-// Improved JSON parser using obs_data_t
-std::string ExtractTextFromJson(const std::string& json) {
-    obs_data_t *data = obs_data_create_from_json(json.c_str());
-    if (!data) return "";
+GeminiClient::GeminiClient(QObject* parent) : QObject(parent) {
+    manager = new QNetworkAccessManager(this);
+}
+
+GeminiClient::~GeminiClient() {
+    // QObject cleanup handles manager
+}
+
+std::string GeminiClient::PerformSyncRequest(const std::string& jsonPayload) {
+    std::string apiKey = GetGeminiAPIKey();
+    if (apiKey.empty()) return "";
+
+    QUrl url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + QString::fromStdString(apiKey));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QNetworkReply* reply = manager->post(request, QByteArray::fromStdString(jsonPayload));
+
+    // Wait for reply synchronously using local event loop
+    QEventLoop loop;
+    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
 
     std::string result = "";
-
-    obs_data_array_t *candidates = obs_data_get_array(data, "candidates");
-    if (candidates) {
-        size_t count = obs_data_array_count(candidates);
-        if (count > 0) {
-            obs_data_t *candidate = obs_data_array_item(candidates, 0);
-            obs_data_t *content = obs_data_get_obj(candidate, "content");
-            if (content) {
-                obs_data_array_t *parts = obs_data_get_array(content, "parts");
-                if (parts) {
-                    size_t pcount = obs_data_array_count(parts);
-                    if (pcount > 0) {
-                        obs_data_t *part = obs_data_array_item(parts, 0);
-                        const char *text = obs_data_get_string(part, "text");
-                        if (text) result = text;
-                        obs_data_release(part);
-                    }
-                    obs_data_array_release(parts);
-                }
-                obs_data_release(content);
-            }
-            obs_data_release(candidate);
-        }
-        obs_data_array_release(candidates);
+    if (reply->error() == QNetworkReply::NoError) {
+        QByteArray response = reply->readAll();
+        result = ExtractTextFromJson(response.toStdString());
+    } else {
+        blog(LOG_ERROR, "Gemini API request failed: %s", reply->errorString().toStdString().c_str());
     }
 
-    obs_data_release(data);
+    reply->deleteLater();
     return result;
 }
 
-void PerformGeminiRequest(const std::string& jsonPayload, std::function<void(std::string)> callback = nullptr)
-{
+void GeminiClient::PerformAsyncRequest(const std::string& jsonPayload, std::function<void(std::string)> callback) {
     std::string apiKey = GetGeminiAPIKey();
     if (apiKey.empty()) return;
 
-    CURL *curl;
-    CURLcode res;
-    std::string readBuffer;
+    QUrl url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + QString::fromStdString(apiKey));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-    curl = curl_easy_init();
-    if(curl) {
-        std::string url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+    QNetworkReply* reply = manager->post(request, QByteArray::fromStdString(jsonPayload));
 
-        struct curl_slist *headers = NULL;
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonPayload.c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-        // Timeout to prevent hanging
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Increased timeout for text generation
-
-        res = curl_easy_perform(curl);
-
-        if(res != CURLE_OK) {
-            blog(LOG_ERROR, "Gemini API request failed: %s", curl_easy_strerror(res));
+    // Connect cleanup and callback
+    connect(reply, &QNetworkReply::finished, [reply, callback]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray response = reply->readAll();
+            std::string text = ExtractTextFromJson(response.toStdString());
+            if (callback) callback(text);
         } else {
-            std::string text = ExtractTextFromJson(readBuffer);
-            if (!text.empty()) {
-                if (callback) {
-                    callback(text);
-                } else {
-                    blog(LOG_INFO, "Transcribed: %s", text.c_str());
-                    UpdateCaption(text);
-                }
-            }
+            blog(LOG_ERROR, "Gemini API request failed: %s", reply->errorString().toStdString().c_str());
         }
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-    }
+        reply->deleteLater();
+    });
 }
 
-void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
-{
-    // Build WAV in memory
+void GeminiClient::SendAudio(const std::vector<int16_t>& pcmData, int sampleRate) {
+    // Build JSON payload (same logic as before)
     std::vector<uint8_t> wavData;
-
     uint32_t totalDataLen = pcmData.size() * 2;
     uint32_t riffChunkSize = 36 + totalDataLen;
     uint32_t byteRate = sampleRate * 1 * 2;
 
-    // RIFF
     wavData.insert(wavData.end(), {'R', 'I', 'F', 'F'});
     wavData.insert(wavData.end(), (uint8_t*)&riffChunkSize, (uint8_t*)&riffChunkSize + 4);
     wavData.insert(wavData.end(), {'W', 'A', 'V', 'E'});
-
-    // fmt
     wavData.insert(wavData.end(), {'f', 'm', 't', ' '});
     uint32_t fmtChunkSize = 16;
     wavData.insert(wavData.end(), (uint8_t*)&fmtChunkSize, (uint8_t*)&fmtChunkSize + 4);
-    uint16_t audioFormat = 1; // PCM
+    uint16_t audioFormat = 1;
     wavData.insert(wavData.end(), (uint8_t*)&audioFormat, (uint8_t*)&audioFormat + 2);
     uint16_t numChannels = 1;
     wavData.insert(wavData.end(), (uint8_t*)&numChannels, (uint8_t*)&numChannels + 2);
@@ -175,8 +160,6 @@ void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
     wavData.insert(wavData.end(), (uint8_t*)&blockAlign, (uint8_t*)&blockAlign + 2);
     uint16_t bitsPerSample = 16;
     wavData.insert(wavData.end(), (uint8_t*)&bitsPerSample, (uint8_t*)&bitsPerSample + 2);
-
-    // data
     wavData.insert(wavData.end(), {'d', 'a', 't', 'a'});
     wavData.insert(wavData.end(), (uint8_t*)&totalDataLen, (uint8_t*)&totalDataLen + 4);
 
@@ -185,64 +168,103 @@ void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
 
     std::string base64Audio = base64_encode(wavData.data(), wavData.size());
 
-    obs_data_t *root = obs_data_create();
-    obs_data_array_t *contentsArray = obs_data_array_create();
-    obs_data_t *contentItem = obs_data_create();
-    obs_data_array_t *partsArray = obs_data_array_create();
+    // Construct JSON using Qt JSON (cleaner)
+    QJsonObject root;
+    QJsonArray contents;
+    QJsonObject contentItem;
+    QJsonArray parts;
 
-    obs_data_t *textPart = obs_data_create();
-    obs_data_set_string(textPart, "text", "Transcribe the following audio to text. Output only the transcribed text, nothing else.");
-    obs_data_array_push_back(partsArray, textPart);
-    obs_data_release(textPart);
+    QJsonObject textPart;
+    textPart["text"] = "Transcribe the following audio to text. Output only the transcribed text, nothing else.";
+    parts.append(textPart);
 
-    obs_data_t *audioPart = obs_data_create();
-    obs_data_t *inlineData = obs_data_create();
-    obs_data_set_string(inlineData, "mimeType", "audio/wav");
-    obs_data_set_string(inlineData, "data", base64Audio.c_str());
-    obs_data_set_obj(audioPart, "inlineData", inlineData);
-    obs_data_release(inlineData);
-    obs_data_array_push_back(partsArray, audioPart);
-    obs_data_release(audioPart);
+    QJsonObject audioPart;
+    QJsonObject inlineData;
+    inlineData["mimeType"] = "audio/wav";
+    inlineData["data"] = QString::fromStdString(base64Audio);
+    audioPart["inlineData"] = inlineData;
+    parts.append(audioPart);
 
-    obs_data_set_array(contentItem, "parts", partsArray);
-    obs_data_array_release(partsArray);
-    obs_data_array_push_back(contentsArray, contentItem);
-    obs_data_release(contentItem);
-    obs_data_set_array(root, "contents", contentsArray);
-    obs_data_array_release(contentsArray);
+    contentItem["parts"] = parts;
+    contents.append(contentItem);
+    root["contents"] = contents;
 
-    const char *jsonOutput = obs_data_get_json(root);
-    std::string jsonPayload(jsonOutput);
-    obs_data_release(root);
+    QJsonDocument doc(root);
+    std::string jsonPayload = doc.toJson(QJsonDocument::Compact).toStdString();
 
-    PerformGeminiRequest(jsonPayload, nullptr);
+    // Perform Sync Request (since we are in a worker thread)
+    std::string text = PerformSyncRequest(jsonPayload);
+    if (!text.empty()) {
+        blog(LOG_INFO, "Transcribed: %s", text.c_str());
+        UpdateCaption(text);
+    }
 }
 
-void SendTextQueryToGemini(const std::string& prompt, std::function<void(std::string)> callback)
-{
-    // Run in a thread to avoid blocking main thread (since this is called from TwitchBot on main thread)
-    std::thread([prompt, callback]() {
-        obs_data_t *root = obs_data_create();
-        obs_data_array_t *contentsArray = obs_data_array_create();
-        obs_data_t *contentItem = obs_data_create();
-        obs_data_array_t *partsArray = obs_data_array_create();
+void GeminiClient::SendTextQuery(const std::string& prompt, std::function<void(std::string)> callback) {
+    QJsonObject root;
+    QJsonArray contents;
+    QJsonObject contentItem;
+    QJsonArray parts;
 
-        obs_data_t *textPart = obs_data_create();
-        obs_data_set_string(textPart, "text", prompt.c_str());
-        obs_data_array_push_back(partsArray, textPart);
-        obs_data_release(textPart);
+    QJsonObject textPart;
+    textPart["text"] = QString::fromStdString(prompt);
+    parts.append(textPart);
 
-        obs_data_set_array(contentItem, "parts", partsArray);
-        obs_data_array_release(partsArray);
-        obs_data_array_push_back(contentsArray, contentItem);
-        obs_data_release(contentItem);
-        obs_data_set_array(root, "contents", contentsArray);
-        obs_data_array_release(contentsArray);
+    contentItem["parts"] = parts;
+    contents.append(contentItem);
+    root["contents"] = contents;
 
-        const char *jsonOutput = obs_data_get_json(root);
-        std::string jsonPayload(jsonOutput);
-        obs_data_release(root);
+    QJsonDocument doc(root);
+    std::string jsonPayload = doc.toJson(QJsonDocument::Compact).toStdString();
 
-        PerformGeminiRequest(jsonPayload, callback);
-    }).detach();
+    PerformAsyncRequest(jsonPayload, callback);
+}
+
+
+// --- Global Wrappers ---
+
+// We need to manage the GeminiClient instance.
+// Since SendAudioToGemini is called from a worker thread (ProcessLoop), and that thread
+// doesn't have a built-in QEventLoop, creating a QObject (GeminiClient) on it is fine
+// IF we spin a local loop, which we do in PerformSyncRequest.
+
+// However, we want to avoid recreating the QNetworkAccessManager every 3 seconds.
+// thread_local storage is a good place for it.
+
+void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate) {
+    // This runs in 'processingThread'
+    static thread_local GeminiClient client;
+    client.SendAudio(pcmData, sampleRate);
+}
+
+void SendTextQueryToGemini(const std::string& prompt, std::function<void(std::string)> callback) {
+    // This is called from the UI thread (TwitchBot logic) usually.
+    // Or we can spawn a detached thread.
+    // The previous implementation detached a thread.
+    // QNetworkAccessManager is async, so we don't need to detach if we use the main thread event loop.
+    // However, TwitchBot::processLine calls this.
+
+    // We can use a static client on the main thread?
+    // Note: TwitchBot lives on main thread.
+
+    // Let's execute this on the main thread to be safe with QObjects
+    // If we are not on main thread, invoke.
+
+    // Actually, simply creating a new QNAM for each text query is fine as they are infrequent.
+    // Or better, make TwitchBot own a GeminiClient instance?
+    // For simplicity of the global API provided in headers:
+
+    // We need to ensure QNAM lives on a thread with an event loop (Main thread has one).
+    // If SendTextQueryToGemini is called from a thread without loop, it won't work async.
+    // TwitchBot logic runs on main thread (socket signals). So we are good.
+
+    static GeminiClient* mainThreadClient = nullptr;
+    if (!mainThreadClient) {
+        // Leak it intentionally or manage properly. Global is fine for plugin scope.
+        mainThreadClient = new GeminiClient();
+        // Note: QObject needs parent or thread affinity.
+        // If this function is called from main thread first time, it binds to main thread.
+    }
+
+    mainThreadClient->SendTextQuery(prompt, callback);
 }

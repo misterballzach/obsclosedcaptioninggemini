@@ -15,7 +15,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(LibObs REQUIRED)
 find_package(ObsFrontendApi REQUIRED) # Using our custom finder or standard if available
 find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
-find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 
 include_directories(${LIBOBS_INCLUDE_DIRS})
@@ -46,7 +45,6 @@ target_link_libraries(obs-gemini-captions
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
-    ${CURL_LIBRARIES}
     Threads::Threads
 )
 
