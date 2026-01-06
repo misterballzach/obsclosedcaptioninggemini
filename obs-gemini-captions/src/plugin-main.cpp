@@ -1,3 +1,5 @@
+#define OBS_FRONTEND_API_VERSION 1
+#include <obs-frontend-api.h>
 #include "plugin-main.h"
 #include "audio-capture.h"
 #include "gemini-client.h"

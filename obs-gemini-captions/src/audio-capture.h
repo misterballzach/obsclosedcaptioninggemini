@@ -7,7 +7,6 @@
 #include <vector>
 
 struct audio_data;
-struct audio_resampler;
 
 class AudioCapture : public QObject {
     Q_OBJECT
@@ -19,7 +18,8 @@ public:
     void stopCapture();
 
 signals:
-    void audioPacketReady(const QByteArray &pcmData);
+    // Updated to include sample rate
+    void audioPacketReady(const QByteArray &pcmData, int sampleRate);
 
 private:
     static void audioCallback(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted);
@@ -27,7 +27,6 @@ private:
 
     obs_source_t *currentAudioSource = nullptr;
     QString currentSourceName;
-    audio_resampler *resampler = nullptr;
     bool capturing = false;
     QMutex mutex;
 
@@ -37,8 +36,6 @@ private:
 
     // Buffer for accumulation
     std::vector<int16_t> audioBuffer;
-    const size_t TARGET_BUFFER_DURATION_MS = 5000; // 5 seconds
-    const int TARGET_SAMPLE_RATE = 16000;
 };
 
 // Global interface

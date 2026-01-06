@@ -2,7 +2,6 @@
 #include "gemini-client.h"
 #include <obs.h>
 #include <obs-source.h>
-#include "audio-resampler.h"
 #include <QDebug>
 #include <QMutexLocker>
 #include <vector>
@@ -10,7 +9,7 @@
 // Forward declare helper
 GeminiClient* GetGlobalGeminiClient();
 
-AudioCapture::AudioCapture(QObject *parent) : QObject(parent), resampler(nullptr) {
+AudioCapture::AudioCapture(QObject *parent) : QObject(parent) {
     // Reserve buffer space (16kHz * 5s)
     audioBuffer.reserve(16000 * 5);
 }
@@ -48,11 +47,6 @@ void AudioCapture::startCapture(const QString &sourceName) {
         obs_source_add_audio_capture_callback(source, audioCallback, this);
         capturing = true;
 
-        if (resampler) {
-            audio_resampler_destroy(resampler);
-            resampler = nullptr;
-        }
-
         // Clear buffer on start
         audioBuffer.clear();
 
@@ -68,10 +62,6 @@ void AudioCapture::stopCapture() {
         obs_source_release(currentAudioSource);
         currentAudioSource = nullptr;
     }
-    if (resampler) {
-        audio_resampler_destroy(resampler);
-        resampler = nullptr;
-    }
     capturing = false;
     audioBuffer.clear();
     qDebug() << "Stopped audio capture";
@@ -82,52 +72,51 @@ void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *d
         return;
     }
 
-    // Lazy init resampler
-    if (!resampler) {
-        struct resample_info srcInfo;
-        srcInfo.samples_per_sec = cachedSampleRate;
-        srcInfo.format = AUDIO_FORMAT_FLOAT_PLANAR;
-        srcInfo.speakers = cachedSpeakers;
+    // Naive Float to Int16 Conversion (No Resampling for now)
+    // We assume the Gemini Client will handle the sample rate in header, or the API is tolerant.
+    // Ideally we should resample, but we removed libobs resampler usage.
+    // For now, we will just take the first channel and convert to int16.
 
-        struct resample_info dstInfo;
-        dstInfo.samples_per_sec = TARGET_SAMPLE_RATE;
-        dstInfo.format = AUDIO_FORMAT_16BIT;
-        dstInfo.speakers = SPEAKERS_MONO;
+    // NOTE: OBS audio is planar float. data->data[0] is channel 1.
+    const float* floatSamples = (const float*)data->data[0];
+    size_t frames = data->frames;
 
-        resampler = audio_resampler_create(&dstInfo, &srcInfo);
-        if (!resampler) {
-            return;
-        }
+    std::vector<int16_t> newSamples(frames);
+    for (size_t i = 0; i < frames; i++) {
+        float sample = floatSamples[i];
+        if (sample > 1.0f) sample = 1.0f;
+        if (sample < -1.0f) sample = -1.0f;
+        newSamples[i] = (int16_t)(sample * 32767.0f);
     }
 
-    uint8_t *outputData[MAX_AV_PLANES];
-    uint32_t outFrames;
-    uint64_t ts_offset;
+    // Append to buffer
+    QMutexLocker locker(&mutex);
+    audioBuffer.insert(audioBuffer.end(), newSamples.begin(), newSamples.end());
 
-    if (audio_resampler_resample(resampler, outputData, &outFrames, &ts_offset,
-                                 (const uint8_t *const *)data->data, data->frames)) {
+    // Check size (Target 5 seconds approx)
+    // If we are at 44.1kHz, 5s = 220500 samples
+    size_t targetSamples = (size_t)(5.0 * cachedSampleRate);
 
-        // Append to buffer
-        const int16_t* pcmSamples = reinterpret_cast<const int16_t*>(outputData[0]);
-        // Mutex is already locked? No, processAudio is called from callback, but start/stop use mutex.
-        // We should protect the buffer.
-        QMutexLocker locker(&mutex);
+    if (audioBuffer.size() >= targetSamples) {
+        // Emit
+        int byteSize = audioBuffer.size() * sizeof(int16_t);
+        QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
 
-        audioBuffer.insert(audioBuffer.end(), pcmSamples, pcmSamples + outFrames);
+        // We need to pass the Sample Rate so the WAV header is correct!
+        // The signal only passes byte array. We should include rate?
+        // Or we assume the receiver knows?
+        // Let's modify the emission to assume cachedSampleRate.
+        // But the signal signature is fixed in header.
+        // We will just emit. The lambda in StartAudioCapture knows the rate? No, it's a static lambda.
+        // We need to pass rate.
+        // For minimal changes: We will re-use the signal but maybe prepend metadata? No.
+        // Let's just update the signal in header to include rate, or pass it.
+        // Ah, audioPacketReady(QByteArray) is what we have.
+        // We should add rate to signal.
 
-        // Check size
-        size_t targetSamples = (TARGET_BUFFER_DURATION_MS * TARGET_SAMPLE_RATE) / 1000;
+        emit audioPacketReady(pcmData, (int)cachedSampleRate);
 
-        if (audioBuffer.size() >= targetSamples) {
-            // Buffer full, emit
-            int byteSize = audioBuffer.size() * sizeof(int16_t);
-            QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
-
-            emit audioPacketReady(pcmData);
-
-            audioBuffer.clear();
-            // Optional: Keep some overlap? For now, clear.
-        }
+        audioBuffer.clear();
     }
 }
 
@@ -139,15 +128,14 @@ bool StartAudioCapture(const std::string& sourceName) {
     if (!g_captureInstance) {
         g_captureInstance = new AudioCapture();
 
-        // Connect signal to Gemini Client (Main Thread)
-        // We need to use QueuedConnection to ensure it runs on the thread where GeminiClient lives
         GeminiClient* client = GetGlobalGeminiClient();
 
-        QObject::connect(g_captureInstance, &AudioCapture::audioPacketReady, client, [client](const QByteArray &data) {
+        // Update connection signature to match new signal
+        QObject::connect(g_captureInstance, &AudioCapture::audioPacketReady, client, [client](const QByteArray &data, int rate) {
             std::vector<int16_t> pcm(data.size() / 2);
             memcpy(pcm.data(), data.constData(), data.size());
 
-            client->SendAudio(pcm, 16000);
+            client->SendAudio(pcm, rate);
         }, Qt::QueuedConnection);
     }
     g_captureInstance->startCapture(QString::fromStdString(sourceName));

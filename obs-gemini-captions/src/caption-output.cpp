@@ -1,6 +1,10 @@
 #include "caption-output.h"
 #include "plugin-main.h"
 #include <obs.h>
+// Make sure frontend API is included with version defined in plugin-main or here if standalone
+// But here we rely on headers.
+// Since we are compiling a separate translation unit, we need to handle the header correctly if used.
+#define OBS_FRONTEND_API_VERSION 1
 #include <obs-frontend-api.h>
 
 void UpdateCaption(const std::string& text)
@@ -22,8 +26,8 @@ void UpdateCaption(const std::string& text)
     // This is what Twitch uses for integrated captions.
     obs_output_t *output = obs_frontend_get_streaming_output();
     if (output) {
-        // Use a reasonable display duration, e.g., 3.0 seconds.
-        obs_output_output_caption_text1(output, text.c_str(), 3.0);
+        // OBS 32.0.4 signature: obs_output_output_caption_text1(output, text)
+        obs_output_output_caption_text1(output, text.c_str());
         obs_output_release(output);
     }
 
@@ -33,7 +37,7 @@ void UpdateCaption(const std::string& text)
     // Also try recording output if active?
     obs_output_t *rec_output = obs_frontend_get_recording_output();
     if (rec_output) {
-         obs_output_output_caption_text1(rec_output, text.c_str(), 3.0);
+         obs_output_output_caption_text1(rec_output, text.c_str());
          obs_output_release(rec_output);
     }
 }
