@@ -1,16 +1,25 @@
 # FindObsFrontendApi.cmake
 
+# Try to find obs-frontend-api in common Windows/Linux locations if not provided
+set(OBS_SEARCH_PATHS
+    "C:/Program Files/obs-studio"
+    "C:/obs-studio"
+    "C:/obs-sdk"
+    "/usr/include/obs"
+    "/usr/local/include/obs"
+)
+
 find_library(OBS_FRONTEND_API_LIB
     NAMES obs-frontend-api
-    PATH_SUFFIXES bin/64bit bin/32bit lib
+    HINTS ${OBS_SEARCH_PATHS}
+    PATH_SUFFIXES bin/64bit bin/32bit lib build/UI/obs-frontend-api/Release
     DOC "Path to obs-frontend-api library"
 )
 
-# Usually headers are in the same place as libobs, or in a sibling directory.
-# But obs-frontend-api.h is often in 'obs-frontend-api' subfolder of includes.
 find_path(OBS_FRONTEND_API_INCLUDE_DIR
     NAMES obs-frontend-api.h
-    PATH_SUFFIXES obs-frontend-api
+    HINTS ${OBS_SEARCH_PATHS}
+    PATH_SUFFIXES obs-frontend-api include/obs-frontend-api UI/obs-frontend-api
     DOC "Path to obs-frontend-api include directory"
 )
 
