@@ -39,7 +39,8 @@ void AudioCapture::startCapture(const QString &sourceName) {
 
         // Use Global Audio Info (OBS 32+)
         struct audio_output_info info = {};
-        audio_output_get_info(obs_get_audio(), &info);
+        // Use 1-argument signature as per OBS 32.0.4 API
+        audio_output_get_info(&info);
 
         cachedSampleRate = info.samples_per_sec;
         cachedSpeakers = info.speakers;
