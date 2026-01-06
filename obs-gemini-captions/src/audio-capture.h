@@ -4,6 +4,7 @@
 #include <QMutex>
 #include <obs.h>
 #include <string>
+#include <vector>
 
 struct audio_data;
 struct audio_resampler;
@@ -29,6 +30,15 @@ private:
     audio_resampler *resampler = nullptr;
     bool capturing = false;
     QMutex mutex;
+
+    // Cached audio format
+    uint32_t cachedSampleRate = 0;
+    enum speaker_layout cachedSpeakers = SPEAKERS_UNKNOWN;
+
+    // Buffer for accumulation
+    std::vector<int16_t> audioBuffer;
+    const size_t TARGET_BUFFER_DURATION_MS = 5000; // 5 seconds
+    const int TARGET_SAMPLE_RATE = 16000;
 };
 
 // Global interface

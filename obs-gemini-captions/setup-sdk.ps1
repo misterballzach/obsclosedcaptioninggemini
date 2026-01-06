@@ -99,32 +99,12 @@ function Generate-Lib {
     cmd /c "lib /def:`"$DefFile`" /out:`"$OutLib`" /machine:x64" | Out-Null
 }
 
-# 1. Setup Include Dirs
-Write-Host "Copying headers..."
-$IncludeDir = Join-Path $SdkDir "include"
-New-Item -ItemType Directory -Force -Path $IncludeDir | Out-Null
-
-# LibObs Headers
-Copy-Item -Recurse -Force (Join-Path $SrcRoot "libobs") (Join-Path $IncludeDir "libobs")
-# Frontend API Headers
-$FrontendInc = Join-Path $IncludeDir "obs-frontend-api"
-New-Item -ItemType Directory -Force -Path $FrontendInc | Out-Null
-Copy-Item -Force (Join-Path $SrcRoot "UI\obs-frontend-api\*.h") $FrontendInc
-
-# 3. Generate obsconfig.h (Required for compilation)
-Write-Host "Generating obsconfig.h..."
-$ObsConfigContent = @"
-#pragma once
-#define OBS_VERSION "$Version"
-#define OBS_DATA_PATH "../../data"
-#define OBS_INSTALL_PREFIX ""
-#define OBS_PLUGIN_DESTINATION "obs-plugins"
-#define OBS_RELATIVE_PREFIX "../../"
-#define OBS_QT_VERSION 6
-#define ON 1
-#define OFF 0
-"@
-Set-Content -Path (Join-Path $IncludeDir "libobs\obsconfig.h") -Value $ObsConfigContent
+# 1. Install Source Code (CRITICAL for modern OBS dev)
+Write-Host "Installing Source Code to $SdkDir\source..."
+$DestSource = Join-Path $SdkDir "source"
+if (Test-Path $DestSource) { Remove-Item -Recurse -Force $DestSource }
+# Move the extracted inner folder (obs-studio-x.y.z) to destination
+Move-Item -Path $SrcRoot -Destination $DestSource
 
 # 2. Setup Bin Dirs & Generate Libs
 Write-Host "Generating libraries..."
@@ -139,9 +119,26 @@ Copy-Item -Force (Join-Path $BinDir "obs-frontend-api.dll") $BinSdkDir
 Generate-Lib (Join-Path $BinSdkDir "obs.dll") (Join-Path $BinSdkDir "obs.lib")
 Generate-Lib (Join-Path $BinSdkDir "obs-frontend-api.dll") (Join-Path $BinSdkDir "obs-frontend-api.lib")
 
+# 3. Generate obsconfig.h (Required for compilation)
+# We place this in the source tree under libobs so CMake can find it cleanly if we include libobs dir
+Write-Host "Generating obsconfig.h..."
+$ObsConfigContent = @"
+#pragma once
+#define OBS_VERSION "$Version"
+#define OBS_DATA_PATH "../../data"
+#define OBS_INSTALL_PREFIX ""
+#define OBS_PLUGIN_DESTINATION "obs-plugins"
+#define OBS_RELATIVE_PREFIX "../../"
+#define OBS_QT_VERSION 6
+#define ON 1
+#define OFF 0
+"@
+Set-Content -Path (Join-Path $DestSource "libobs\obsconfig.h") -Value $ObsConfigContent
+
 # Cleanup
 Write-Host "Cleaning up temp files..."
 Remove-Item -Recurse -Force $WorkDir
 
 Write-Host "Success! OBS SDK installed to $SdkDir" -ForegroundColor Green
-Write-Host "You can now run CMake."
+Write-Host "Source code is available at: $DestSource"
+Write-Host "Libraries are available at: $BinSdkDir"

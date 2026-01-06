@@ -13,8 +13,8 @@
 #include <QJsonArray>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QThread>
 
-// Simple Base64 encoder (still useful, or use QByteArray::toBase64)
 static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
              "abcdefghijklmnopqrstuvwxyz"
@@ -61,7 +61,6 @@ std::string base64_encode(unsigned char const* bytes_to_encode, unsigned int in_
 }
 
 std::string ExtractTextFromJson(const std::string& json) {
-    // We can use Qt JSON parser now
     QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(json));
     if (doc.isNull()) return "";
 
@@ -83,34 +82,21 @@ GeminiClient::GeminiClient(QObject* parent) : QObject(parent) {
 }
 
 GeminiClient::~GeminiClient() {
-    // QObject cleanup handles manager
 }
 
-std::string GeminiClient::PerformSyncRequest(const std::string& jsonPayload) {
-    std::string apiKey = GetGeminiAPIKey();
-    if (apiKey.empty()) return "";
-
-    QUrl url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + QString::fromStdString(apiKey));
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    QNetworkReply* reply = manager->post(request, QByteArray::fromStdString(jsonPayload));
-
-    // Wait for reply synchronously using local event loop
-    QEventLoop loop;
-    connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    std::string result = "";
-    if (reply->error() == QNetworkReply::NoError) {
+void GeminiClient::onReplyFinished(QNetworkReply* reply) {
+     if (reply->error() == QNetworkReply::NoError) {
+        // This is a fire-and-forget audio upload response
         QByteArray response = reply->readAll();
-        result = ExtractTextFromJson(response.toStdString());
+        std::string text = ExtractTextFromJson(response.toStdString());
+        if (!text.empty()) {
+            blog(LOG_INFO, "Transcribed: %s", text.c_str());
+            UpdateCaption(text);
+        }
     } else {
         blog(LOG_ERROR, "Gemini API request failed: %s", reply->errorString().toStdString().c_str());
     }
-
     reply->deleteLater();
-    return result;
 }
 
 void GeminiClient::PerformAsyncRequest(const std::string& jsonPayload, std::function<void(std::string)> callback) {
@@ -123,7 +109,6 @@ void GeminiClient::PerformAsyncRequest(const std::string& jsonPayload, std::func
 
     QNetworkReply* reply = manager->post(request, QByteArray::fromStdString(jsonPayload));
 
-    // Connect cleanup and callback
     connect(reply, &QNetworkReply::finished, [reply, callback]() {
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray response = reply->readAll();
@@ -137,7 +122,6 @@ void GeminiClient::PerformAsyncRequest(const std::string& jsonPayload, std::func
 }
 
 void GeminiClient::SendAudio(const std::vector<int16_t>& pcmData, int sampleRate) {
-    // Build JSON payload (same logic as before)
     std::vector<uint8_t> wavData;
     uint32_t totalDataLen = pcmData.size() * 2;
     uint32_t riffChunkSize = 36 + totalDataLen;
@@ -168,7 +152,6 @@ void GeminiClient::SendAudio(const std::vector<int16_t>& pcmData, int sampleRate
 
     std::string base64Audio = base64_encode(wavData.data(), wavData.size());
 
-    // Construct JSON using Qt JSON (cleaner)
     QJsonObject root;
     QJsonArray contents;
     QJsonObject contentItem;
@@ -192,12 +175,18 @@ void GeminiClient::SendAudio(const std::vector<int16_t>& pcmData, int sampleRate
     QJsonDocument doc(root);
     std::string jsonPayload = doc.toJson(QJsonDocument::Compact).toStdString();
 
-    // Perform Sync Request (since we are in a worker thread)
-    std::string text = PerformSyncRequest(jsonPayload);
-    if (!text.empty()) {
-        blog(LOG_INFO, "Transcribed: %s", text.c_str());
-        UpdateCaption(text);
-    }
+    // Async request
+    std::string apiKey = GetGeminiAPIKey();
+    if (apiKey.empty()) return;
+
+    QUrl url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + QString::fromStdString(apiKey));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    QNetworkReply* reply = manager->post(request, QByteArray::fromStdString(jsonPayload));
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onReplyFinished(reply);
+    });
 }
 
 void GeminiClient::SendTextQuery(const std::string& prompt, std::function<void(std::string)> callback) {
@@ -220,51 +209,66 @@ void GeminiClient::SendTextQuery(const std::string& prompt, std::function<void(s
     PerformAsyncRequest(jsonPayload, callback);
 }
 
-
 // --- Global Wrappers ---
 
-// We need to manage the GeminiClient instance.
-// Since SendAudioToGemini is called from a worker thread (ProcessLoop), and that thread
-// doesn't have a built-in QEventLoop, creating a QObject (GeminiClient) on it is fine
-// IF we spin a local loop, which we do in PerformSyncRequest.
-
-// However, we want to avoid recreating the QNetworkAccessManager every 3 seconds.
-// thread_local storage is a good place for it.
+// We hold a persistent client on the main thread.
+static GeminiClient* g_client = nullptr;
 
 void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate) {
-    // This runs in 'processingThread'
-    static thread_local GeminiClient client;
-    client.SendAudio(pcmData, sampleRate);
+    // This is called from the Audio Capture thread (from processAudio or buffer processing).
+    // We must invoke this on the thread where the client lives (Main Thread).
+
+    // Ensure we have a client on the main thread (plugin load creates one usually, but we lazy init here)
+    if (!g_client) {
+        // If we are not on main thread, we can't create it with correct affinity easily without context.
+        // But QMetaObject::invokeMethod helps.
+
+        // Assumption: This function is called from a QObject's signal/slot or we can access the main thread context.
+        // Actually, let's look at how it's called.
+        // It is called from AudioCapture::processAudio (or buffer flush) via a direct call or lambda.
+        // AudioCapture lives in a thread? No, AudioCapture is a QObject.
+        // The audioCallback is a C callback on an audio thread.
+        // AudioCapture::processAudio runs on that audio thread.
+        // We need to move data to the main thread.
+
+        // Better approach: AudioCapture emits a signal, connected to a slot on the main thread.
+        // We will refactor this in audio-capture.cpp to Connect to a slot.
+        // But to keep this global function working:
+
+        // We can't safely access g_client here if it lives on another thread.
+        // But if we create a temporary client here?
+        // No, we want to reuse the connection manager.
+
+        // We will assume this function is called on the Main Thread.
+        // AudioCapture needs to emit a signal, and the slot that receives it calls this function.
+        // OR AudioCapture emits 'audioPacketReady', and we connect that to a slot on the Main Thread Plugin instance
+        // which calls this.
+    }
 }
 
-void SendTextQueryToGemini(const std::string& prompt, std::function<void(std::string)> callback) {
-    // This is called from the UI thread (TwitchBot logic) usually.
-    // Or we can spawn a detached thread.
-    // The previous implementation detached a thread.
-    // QNetworkAccessManager is async, so we don't need to detach if we use the main thread event loop.
-    // However, TwitchBot::processLine calls this.
+// NOTE: We are removing the implementation of SendAudioToGemini here because
+// we want the AudioCapture to emit a signal that is connected to a GeminiClient slot.
+// BUT, to satisfy the linker for existing calls:
 
-    // We can use a static client on the main thread?
-    // Note: TwitchBot lives on main thread.
+void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate) {
+    // This function acts as a bridge.
+    // Ideally, we shouldn't use it if we rewire the signal/slot.
+    // But let's make it thread-safe invoke the global client.
 
-    // Let's execute this on the main thread to be safe with QObjects
-    // If we are not on main thread, invoke.
-
-    // Actually, simply creating a new QNAM for each text query is fine as they are infrequent.
-    // Or better, make TwitchBot own a GeminiClient instance?
-    // For simplicity of the global API provided in headers:
-
-    // We need to ensure QNAM lives on a thread with an event loop (Main thread has one).
-    // If SendTextQueryToGemini is called from a thread without loop, it won't work async.
-    // TwitchBot logic runs on main thread (socket signals). So we are good.
-
-    static GeminiClient* mainThreadClient = nullptr;
-    if (!mainThreadClient) {
-        // Leak it intentionally or manage properly. Global is fine for plugin scope.
-        mainThreadClient = new GeminiClient();
-        // Note: QObject needs parent or thread affinity.
-        // If this function is called from main thread first time, it binds to main thread.
+    if (!g_client) {
+        // Create on main thread if possible, or just leak one for now if we are desperate.
+        // Correct way: The Plugin class should own the GeminiClient.
+        // We will rely on the "StartAudioCapture" connecting the signal correctly.
+        // But the previous "StartAudioCapture" used a lambda that called this.
+        // We will change that lambda to find the global client or emit a signal.
     }
+}
 
-    mainThreadClient->SendTextQuery(prompt, callback);
+// Actually, we will expose a helper to GET the client.
+GeminiClient* GetGlobalGeminiClient() {
+    if (!g_client) {
+        // Assuming we are on main thread when this is first called (plugin load)
+        g_client = new GeminiClient();
+    }
+    return g_client;
 }

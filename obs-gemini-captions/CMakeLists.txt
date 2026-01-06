@@ -12,23 +12,32 @@ set(CMAKE_AUTOUIC ON)
 # Add local cmake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(LibObs REQUIRED)
-find_package(ObsFrontendApi REQUIRED) # Using our custom finder or standard if available
+# Point to our SDK root
+if(NOT DEFINED OBS_SDK_PATH)
+    set(OBS_SDK_PATH "C:/obs-sdk")
+endif()
+
+set(OBS_SOURCE_DIR "${OBS_SDK_PATH}/source")
+set(OBS_BIN_DIR "${OBS_SDK_PATH}/bin/64bit")
+
+message(STATUS "Using OBS Source Dir: ${OBS_SOURCE_DIR}")
+message(STATUS "Using OBS Lib Dir: ${OBS_BIN_DIR}")
+
 find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
 find_package(Threads REQUIRED)
 
-include_directories(${LIBOBS_INCLUDE_DIRS})
-include_directories(${OBS_FRONTEND_API_INCLUDE_DIRS})
+# We manually define the library targets because we generated them ourselves
+add_library(LibObs::LibObs UNKNOWN IMPORTED)
+set_target_properties(LibObs::LibObs PROPERTIES
+    IMPORTED_LOCATION "${OBS_BIN_DIR}/obs.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${OBS_SOURCE_DIR}/libobs"
+)
 
-# Fallback in case finder misses the parent directory for implicit includes
-# If header is at .../include/obs-frontend-api/obs-frontend-api.h and finder returns .../include/obs-frontend-api
-# Then <obs-frontend-api.h> works.
-# If header is at .../include/obs-frontend-api.h and finder returns .../include
-# Then <obs-frontend-api.h> works.
-# But sometimes users have .../include/obs-frontend-api/obs-frontend-api.h and use <obs-frontend-api/obs-frontend-api.h>
-# We add the parent directory of the found include dir just in case.
-get_filename_component(OBS_FRONTEND_API_PARENT_DIR "${OBS_FRONTEND_API_INCLUDE_DIRS}" DIRECTORY)
-include_directories(${OBS_FRONTEND_API_PARENT_DIR})
+add_library(ObsFrontendApi::ObsFrontendApi UNKNOWN IMPORTED)
+set_target_properties(ObsFrontendApi::ObsFrontendApi PROPERTIES
+    IMPORTED_LOCATION "${OBS_BIN_DIR}/obs-frontend-api.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${OBS_SOURCE_DIR}/UI/obs-frontend-api"
+)
 
 set(SOURCES
     src/plugin-main.cpp
@@ -58,7 +67,13 @@ target_link_libraries(obs-gemini-captions
     Threads::Threads
 )
 
-target_include_directories(obs-gemini-captions PRIVATE src)
+# CRITICAL: Wire up include directories exactly as requested by upstream
+target_include_directories(obs-gemini-captions PRIVATE
+    ${OBS_SOURCE_DIR}/UI
+    ${OBS_SOURCE_DIR}/libobs
+    ${OBS_SOURCE_DIR}/UI/obs-frontend-api # For convenince if code uses "obs-frontend-api.h" directly
+    src
+)
 
 set_target_properties(obs-gemini-captions PROPERTIES PREFIX "")
 
