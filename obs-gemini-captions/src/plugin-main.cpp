@@ -20,6 +20,16 @@ MODULE_EXPORT const char *obs_module_description(void)
     return "Closed Captioning using Gemini API";
 }
 
+MODULE_EXPORT const char *obs_module_name(void)
+{
+    return "Gemini Captions";
+}
+
+MODULE_EXPORT const char *obs_module_author(void)
+{
+    return "Jules (AI)";
+}
+
 static GeminiCaptionsDialog *settingsDialog = nullptr;
 static CaptionDock *captionDock = nullptr;
 static TwitchBot *twitchBot = nullptr;
