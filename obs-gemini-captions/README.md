@@ -20,13 +20,12 @@ We are assuming you are on Windows because that's what most streamers use.
     *   Install it. When asked, select **"Add CMake to the system PATH for all users"**.
 
 3.  **Qt 6**
-    *   This is the hardest part. You need an account.
     *   Download the "Online Installer": [https://www.qt.io/download-qt-installer](https://www.qt.io/download-qt-installer)
     *   Run it, log in.
     *   In the "Select Components" screen:
         *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.6 or 6.7).
-        *   **CRITICAL:** You must check **MSVC 2019 64-bit** (or MSVC 2022).
-        *   **DO NOT** select "MinGW". If you use MinGW with Visual Studio, it will break.
+        *   **RECOMMENDED:** Check **MSVC 2019 64-bit** (or MSVC 2022).
+        *   **IF YOU MUST USE MINGW:** See the "MinGW Users" section below.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
@@ -37,120 +36,77 @@ We are assuming you are on Windows because that's what most streamers use.
         *   Go to the [OBS GitHub Actions page](https://github.com/obsproject/obs-studio/actions).
         *   Click on the latest "CI" workflow run that passed (green checkmark).
         *   Scroll down to **Artifacts**.
-        *   Download `windows-x64-sdk` (or similar name). You might need to log in to GitHub.
-        *   **Extract this folder** to somewhere safe, like `C:\obs-sdk`.
-    *   **Verify it:** Inside `C:\obs-sdk\bin\64bit`, you should see `obs.lib` and `obs-frontend-api.lib`. If you see those files, you are good.
+        *   Download `windows-x64-sdk` (or similar name).
+        *   **Extract this folder** to `C:\obs-sdk`.
 
 ---
 
 ## Part 2: The Scary Part (Building the Plugin)
 
-1.  **Open CMake (cmake-gui)**
-    *   Press Start, type `CMake`, run it.
+### Standard Method (MSVC Qt)
 
-2.  **Tell it where the code is:**
-    *   **Where is the source code:** Browse to the folder where `CMakeLists.txt` is (this folder you are reading this in).
-    *   **Where to build the binaries:** Create a new folder inside this one called `build` and select it.
-
-3.  **Click "Configure"**
-    *   A popup appears. Select **Visual Studio 17 2022**.
+1.  **Open CMake (cmake-gui)**.
+2.  **Where is source code:** The folder with `CMakeLists.txt`.
+3.  **Where to build:** Create a `build` folder.
+4.  **Configure:**
+    *   Select **Visual Studio 17 2022**.
     *   Platform: **x64**.
-    *   Click Finish.
+5.  **Fix Errors:**
+    *   Set `LIBOBS_INCLUDE_DIR` to `C:\obs-sdk\include\libobs`.
+    *   Set `LIBOBS_LIB` to `C:\obs-sdk\bin\64bit\obs.lib`.
+    *   Set `Qt6_DIR` to your Qt MSVC folder (e.g., `C:\Qt\6.10.0\msvc2019_64\lib\cmake\Qt6`).
+6.  **Generate** -> **Open Project** -> Build in Visual Studio.
 
-4.  **Fix the Errors (The Red Text)**
-    *   **It is NORMAL to see red text and errors the first time!** Do not panic.
-    *   Look at the screenshot you sent. You see `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB` are red and say `NOTFOUND`. This means CMake doesn't know where you put the SDK.
-    *   **Fix LibObs:**
-        *   **LIBOBS_INCLUDE_DIR:** Browse to `C:\obs-sdk\include\libobs` (Make sure it contains `obs.h`).
-        *   **LIBOBS_LIB:** Browse to `C:\obs-sdk\bin\64bit\obs.lib`. **Important:** Point to the FILE `obs.lib`, not the folder.
-    *   **Fix ObsFrontendApi:**
-        *   **OBS_FRONTEND_API_INCLUDE_DIR:** Browse to `C:\obs-sdk\include` (Make sure it contains `obs-frontend-api` folder inside).
-        *   **OBS_FRONTEND_API_LIB:** Browse to `C:\obs-sdk\bin\64bit\obs-frontend-api.lib`.
-    *   **Fix Qt6:**
-        *   If `Qt6_DIR` is red, browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
-        *   **WARNING:** If this path says `mingw`, STOP. You installed the wrong Qt version. See "Part 1".
-    *   **Click Configure again** until the red text turns white and the error at the bottom goes away.
+---
 
-5.  **Click "Generate"**
-    *   If it says "Generating done", you won!
+### MinGW Users (If you can't install MSVC Qt)
 
-6.  **Click "Open Project"**
-    *   This opens Visual Studio.
+**WARNING:** If you use MinGW Qt, you CANNOT use Visual Studio to build. You must use the MinGW compiler (`gcc`/`g++`).
+**WARNING 2:** A plugin built with MinGW might NOT load in standard OBS Studio (which uses MSVC). It might crash. Proceed at your own risk.
 
-7.  **Compile**
-    *   At the top toolbar, change `Debug` to `Release`.
-    *   On the right side "Solution Explorer", right-click **obs-gemini-captions** and select **Build**.
-    *   If it says "Build: 1 succeeded", you are a genius.
+1.  **Open CMake (cmake-gui)**.
+    *   **IMPORTANT:** If you already ran Configure with "Visual Studio", you must click **File -> Delete Cache** first.
+2.  **Configure:**
+    *   Generator: Select **"MinGW Makefiles"**. (Do NOT select Visual Studio).
+    *   Select "Use default native compilers" (if you have MinGW in your PATH).
+3.  **Fix Errors:**
+    *   Set `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB` as usual.
+    *   Set `Qt6_DIR` to your MinGW Qt folder (e.g., `C:\Qt\6.10.1\mingw_64\lib\cmake\Qt6`).
+4.  **Generate**.
+5.  **Build:**
+    *   You cannot click "Open Project".
+    *   Open a command prompt (cmd) in your `build` folder.
+    *   Type `mingw32-make` (or just `make` if setup that way).
+    *   This will create the `.dll` file.
 
 ---
 
 ## Part 3: Putting it in OBS
 
-You built it! Now you have to install it manually.
-
 1.  **Find the `.dll` file**
-    *   Go to your `build/Release` folder.
-    *   Find `obs-gemini-captions.dll`.
-    *   Copy it.
-
-2.  **Go to your OBS Install Folder**
-    *   Usually `C:\Program Files\obs-studio`.
-    *   Go to `obs-plugins` -> `64bit`.
-    *   **Paste** the `.dll` file here.
-
-3.  **Install the Data (Language files)**
-    *   Go back to the source code folder (where this README is).
-    *   Copy the `data` folder.
-    *   Go to `C:\Program Files\obs-studio\data\obs-plugins`.
-    *   Create a folder named `obs-gemini-captions`.
-    *   Paste the content of `data` inside so it looks like:
-        `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions\locale\en-US.ini`
+    *   Copy `obs-gemini-captions.dll` from your build folder.
+2.  **Go to OBS Install Folder**
+    *   `C:\Program Files\obs-studio\obs-plugins\64bit`.
+    *   Paste the `.dll`.
+3.  **Install Data**
+    *   Copy the `data` folder from source to `C:\Program Files\obs-studio\data\obs-plugins`.
+    *   Rename folder to `obs-gemini-captions`.
 
 ---
 
 ## Part 4: How to Use It
 
-1.  **Get a Gemini API Key**
-    *   Go to [Google AI Studio](https://aistudio.google.com/).
-    *   Click "Get API Key". Copy it.
-
-2.  **Get Twitch Info (Optional)**
-    *   **Username:** Your twitch username.
-    *   **Token:** Go to a site like [twitchapps.com/tmi](https://twitchapps.com/tmi/) to get an "oauth token". It looks like `oauth:xyz123...`.
-    *   **Channel:** The channel you want the bot to talk in (e.g., your username).
-
-3.  **Start OBS**
-    *   Go to the top menu: **Tools** -> **Gemini Captions**.
-    *   Paste your API Key.
-    *   Select your **Audio Source** (like your Mic).
-    *   (Optional) Paste your Twitch info.
-    *   Click **Start Captioning**.
-
-4.  **See the Magic**
-    *   **Captions:** Will appear in the "Dock". Go to **View -> Docks -> Gemini Captions** if you don't see it.
-    *   **Twitch:** People can type `!gemini Tell me a joke` in your chat, and the bot will reply.
-    *   **Closed Captions:** Viewers on Twitch can click the "CC" button on your stream video player to see subtitles.
+1.  **Get a Gemini API Key** from [Google AI Studio](https://aistudio.google.com/).
+2.  **Start OBS** -> **Tools** -> **Gemini Captions**.
+3.  Enter API Key and select Audio Source.
+4.  Click **Start Captioning**.
 
 ---
 
-## Common Mistakes & Troubleshooting
+## Troubleshooting
 
-*   **"Qt6_DIR points to mingw_64"**:
-    *   **Problem:** You installed the "MinGW" version of Qt, but you are using Visual Studio (MSVC). They are enemies.
-    *   **Fix:** Uninstall MinGW Qt. Install **MSVC 2019 64-bit** Qt. Update the path in CMake.
-
-*   **"LIBOBS_LIB points to a folder"**:
-    *   **Problem:** CMake shows "Configuring done", but the build fails with link errors.
-    *   **Fix:** In CMake, `LIBOBS_LIB` must point to a file ending in `.lib` (e.g., `obs.lib`), not just the folder it's in.
-
-*   **"Could NOT find LibObs (NOTFOUND)"**:
-    *   **Problem:** You didn't point CMake to the `obs-sdk` folder, or you downloaded the source code instead of the SDK.
-    *   **Fix:** Download the **OBS Studio SDK** (artifact) from GitHub Actions. Source code zip does not have `.lib` files.
-
-*   **"Could NOT find WrapVulkanHeaders"**:
-    *   **Status:** Ignore this. It's a warning from Qt. It won't stop the build.
-
-*   **"It crashes!"**: You probably didn't copy the `locale` folder correctly. OBS hates it when plugins don't have text files.
-*   **"Twitch bot not working!"**: Make sure your token starts with `oauth:` and is valid.
+*   **"Qt6_DIR points to mingw_64"**: Use "MinGW Makefiles" generator in CMake.
+*   **"LIBOBS_LIB points to a folder"**: Point to the `.lib` file.
+*   **"Plugin fails to load"**: If you built with MinGW, this is likely an incompatibility with OBS Studio (MSVC). You might need to build OBS from source using MinGW to use this plugin.
 
 Good luck!
