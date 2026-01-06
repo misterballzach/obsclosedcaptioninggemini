@@ -30,15 +30,16 @@ We are assuming you are on Windows because that's what most streamers use.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
-4.  **OBS Studio Libraries (The "libobs" stuff)**
-    *   CMake needs to know where OBS is to build the plugin.
-    *   **Option A (Hard):** Build OBS Studio from source.
-    *   **Option B (Easy):** You still need the source code.
-        *   Go to: [https://github.com/obsproject/obs-studio](https://github.com/obsproject/obs-studio)
-        *   Click **Code** -> **Download ZIP**. Extract to `C:\obs-studio`.
-        *   **Important:** You also need the "libs" (compiled files).
-        *   If you can't build OBS, you might be stuck. But we will try to just point CMake to the headers.
-        *   *Tip:* Sometimes you can grab the "CI Artifacts" (obs-studio-x64-dev.zip) from the OBS GitHub Actions page if you have a GitHub account. This is the "proper" SDK. Extract it to `C:\obs-sdk`.
+4.  **OBS Studio SDK (Important!)**
+    *   You CANNOT just use the "Source Code" zip file from GitHub. It is missing the `.lib` files needed to compile plugins.
+    *   **You need the OBS Studio SDK.**
+    *   **Where to get it:**
+        *   Go to the [OBS GitHub Actions page](https://github.com/obsproject/obs-studio/actions).
+        *   Click on the latest "CI" workflow run that passed (green checkmark).
+        *   Scroll down to **Artifacts**.
+        *   Download `windows-x64-sdk` (or similar name). You might need to log in to GitHub.
+        *   **Extract this folder** to somewhere safe, like `C:\obs-sdk`.
+    *   **Verify it:** Inside `C:\obs-sdk\bin\64bit`, you should see `obs.lib` and `obs-frontend-api.lib`. If you see those files, you are good.
 
 ---
 
@@ -58,17 +59,13 @@ We are assuming you are on Windows because that's what most streamers use.
 
 4.  **Fix the Errors (The Red Text)**
     *   **It is NORMAL to see red text and errors the first time!** Do not panic.
-    *   Look at the screenshot you sent. You see `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB` are red and say `NOTFOUND`. This means CMake doesn't know where you put OBS.
+    *   Look at the screenshot you sent. You see `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB` are red and say `NOTFOUND`. This means CMake doesn't know where you put the SDK.
     *   **Fix LibObs:**
-        *   Click the empty/red box next to **LIBOBS_INCLUDE_DIR**. Click the "..." button.
-        *   Browse to the folder `libobs` inside where you downloaded OBS (e.g., `C:\obs-studio\libobs`). It should have `obs.h` inside it.
-        *   Click the box next to **LIBOBS_LIB**.
-        *   **IMPORTANT:** This must point to a FILE (e.g., `obs.lib`), NOT a FOLDER. If you point it to a folder, CMake might say "Configuring done" but the build will fail later.
+        *   **LIBOBS_INCLUDE_DIR:** Browse to `C:\obs-sdk\include\libobs` (Make sure it contains `obs.h`).
+        *   **LIBOBS_LIB:** Browse to `C:\obs-sdk\bin\64bit\obs.lib`. **Important:** Point to the FILE `obs.lib`, not the folder.
     *   **Fix ObsFrontendApi:**
-        *   If `OBS_FRONTEND_API_INCLUDE_DIR` is red/not found:
-            *   Browse to `C:\obs-studio\UI\obs-frontend-api` (Source Code) OR `C:\obs-sdk\include` (SDK). Look for `obs-frontend-api.h`.
-        *   If `OBS_FRONTEND_API_LIB` is red/not found:
-            *   Browse to `C:\obs-studio\build\UI\obs-frontend-api\Release\obs-frontend-api.lib` (Build) OR `C:\obs-sdk\bin\64bit\obs-frontend-api.lib` (SDK).
+        *   **OBS_FRONTEND_API_INCLUDE_DIR:** Browse to `C:\obs-sdk\include` (Make sure it contains `obs-frontend-api` folder inside).
+        *   **OBS_FRONTEND_API_LIB:** Browse to `C:\obs-sdk\bin\64bit\obs-frontend-api.lib`.
     *   **Fix Qt6:**
         *   If `Qt6_DIR` is red, browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
         *   **WARNING:** If this path says `mingw`, STOP. You installed the wrong Qt version. See "Part 1".
@@ -145,6 +142,10 @@ You built it! Now you have to install it manually.
 *   **"LIBOBS_LIB points to a folder"**:
     *   **Problem:** CMake shows "Configuring done", but the build fails with link errors.
     *   **Fix:** In CMake, `LIBOBS_LIB` must point to a file ending in `.lib` (e.g., `obs.lib`), not just the folder it's in.
+
+*   **"Could NOT find LibObs (NOTFOUND)"**:
+    *   **Problem:** You didn't point CMake to the `obs-sdk` folder, or you downloaded the source code instead of the SDK.
+    *   **Fix:** Download the **OBS Studio SDK** (artifact) from GitHub Actions. Source code zip does not have `.lib` files.
 
 *   **"Could NOT find WrapVulkanHeaders"**:
     *   **Status:** Ignore this. It's a warning from Qt. It won't stop the build.

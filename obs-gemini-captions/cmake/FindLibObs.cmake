@@ -23,6 +23,23 @@ find_library(LIBOBS_LIB
     DOC "Path to obs library (look for obs.lib or libobs.so)"
 )
 
+if(NOT LIBOBS_LIB)
+    message(WARNING "
+    -------------------------------------------------------------------------
+    Could NOT find 'obs.lib' (Windows) or 'libobs.so' (Linux).
+
+    If you are on Windows, you CANNOT just use the OBS Source Code ZIP.
+    You MUST have the 'libs' (compiled files).
+
+    RECOMMENDATION:
+    1. Download the 'OBS Studio SDK' (or CI Artifacts) which contains .lib files.
+    2. OR, Build OBS Studio from source yourself.
+
+    Set LIBOBS_LIB to the path of 'obs.lib'.
+    -------------------------------------------------------------------------
+    ")
+endif()
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LibObs
     REQUIRED_VARS LIBOBS_LIB LIBOBS_INCLUDE_DIR
