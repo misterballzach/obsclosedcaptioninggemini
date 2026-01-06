@@ -8,9 +8,19 @@
 #include <util/platform.h>
 #include <QAction>
 #include <QMainWindow>
+#include <QDockWidget>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QPushButton>
+#include <QDialog>
 #include <filesystem>
 #include <mutex>
 #include <QDateTime>
+#include <QThread>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-gemini-captions", "en-US")
@@ -29,6 +39,38 @@ MODULE_EXPORT const char *obs_module_author(void)
 {
     return "Jules (AI)";
 }
+
+// Forward Declaration for local classes
+class CaptionDock : public QDockWidget {
+public:
+    CaptionDock(QWidget *parent = nullptr);
+    void AppendText(const QString &text);
+private:
+    QTextEdit *textDisplay;
+};
+
+class GeminiCaptionsDialog : public QDialog {
+public:
+    GeminiCaptionsDialog(QWidget *parent = nullptr);
+    ~GeminiCaptionsDialog();
+private slots:
+    void onSave();
+    void onToggleStartStop();
+private:
+    void populateSources();
+    void loadSettings();
+    void saveSettings();
+
+    QLineEdit *apiKeyEdit;
+    QComboBox *audioSourceCombo;
+    QComboBox *textSourceCombo;
+
+    QLineEdit *twitchUserEdit;
+    QLineEdit *twitchTokenEdit;
+    QLineEdit *twitchChannelEdit;
+
+    QPushButton *startStopButton;
+};
 
 static GeminiCaptionsDialog *settingsDialog = nullptr;
 static CaptionDock *captionDock = nullptr;
@@ -368,7 +410,7 @@ void StartCaptioning()
             blog(LOG_ERROR, "Failed to start audio capture.");
         }
     } else {
-         captioningActive = true; // Still allow if only bot is wanted? But "Start Captioning" implies captions.
+         captioningActive = true;
     }
 
     if (!twUser.empty() && !twToken.empty() && !twChan.empty()) {

@@ -20,6 +20,16 @@ find_package(Threads REQUIRED)
 include_directories(${LIBOBS_INCLUDE_DIRS})
 include_directories(${OBS_FRONTEND_API_INCLUDE_DIRS})
 
+# Fallback in case finder misses the parent directory for implicit includes
+# If header is at .../include/obs-frontend-api/obs-frontend-api.h and finder returns .../include/obs-frontend-api
+# Then <obs-frontend-api.h> works.
+# If header is at .../include/obs-frontend-api.h and finder returns .../include
+# Then <obs-frontend-api.h> works.
+# But sometimes users have .../include/obs-frontend-api/obs-frontend-api.h and use <obs-frontend-api/obs-frontend-api.h>
+# We add the parent directory of the found include dir just in case.
+get_filename_component(OBS_FRONTEND_API_PARENT_DIR "${OBS_FRONTEND_API_INCLUDE_DIRS}" DIRECTORY)
+include_directories(${OBS_FRONTEND_API_PARENT_DIR})
+
 set(SOURCES
     src/plugin-main.cpp
     src/audio-capture.cpp

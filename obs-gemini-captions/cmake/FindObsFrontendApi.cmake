@@ -5,6 +5,7 @@ set(OBS_SEARCH_PATHS
     "C:/Program Files/obs-studio"
     "C:/obs-studio"
     "C:/obs-sdk"
+    "C:/obs-sdk/include"
     "/usr/include/obs"
     "/usr/local/include/obs"
 )
@@ -29,6 +30,10 @@ find_path(OBS_FRONTEND_API_INCLUDE_DIR
     PATH_SUFFIXES obs-frontend-api include/obs-frontend-api UI/obs-frontend-api include
     DOC "Path to obs-frontend-api include directory"
 )
+
+# Debug printing
+message(STATUS "Frontend API Include Found: ${OBS_FRONTEND_API_INCLUDE_DIR}")
+message(STATUS "Frontend API Lib Found: ${OBS_FRONTEND_API_LIB}")
 
 if(OBS_FRONTEND_API_LIB)
     get_filename_component(LIB_EXT "${OBS_FRONTEND_API_LIB}" EXT)
