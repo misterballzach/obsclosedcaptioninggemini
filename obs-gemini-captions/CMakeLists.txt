@@ -23,18 +23,18 @@ set(OBS_BIN_DIR "${OBS_SDK_PATH}/bin/64bit")
 message(STATUS "Using OBS Source Dir: ${OBS_SOURCE_DIR}")
 message(STATUS "Using OBS Lib Dir: ${OBS_BIN_DIR}")
 
-# Sanity Check for Source Dir
-if(NOT EXISTS "${OBS_SOURCE_DIR}/UI/obs-frontend-api")
+# Sanity Check for Source Dir (OBS 32+ Layout: frontend/api)
+if(NOT EXISTS "${OBS_SOURCE_DIR}/frontend/api/obs-frontend-api.h")
     message(FATAL_ERROR "
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     CRITICAL CONFIGURATION ERROR:
     OBS Source Code is missing or incomplete at:
-    ${OBS_SOURCE_DIR}/UI/obs-frontend-api
+    ${OBS_SOURCE_DIR}/frontend/api/obs-frontend-api.h
 
     You MUST run 'setup-sdk.ps1' (as Administrator, in VS2022 x64 CMD)
     to download and install the OBS SDK correctly.
 
-    The script will create C:/obs-sdk/source/UI/obs-frontend-api
+    The script will create C:/obs-sdk/source/frontend/api
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ")
 endif()
@@ -55,7 +55,7 @@ set_target_properties(LibObs::LibObs PROPERTIES
 add_library(ObsFrontendApi::ObsFrontendApi UNKNOWN IMPORTED)
 set_target_properties(ObsFrontendApi::ObsFrontendApi PROPERTIES
     IMPORTED_LOCATION "${OBS_BIN_DIR}/obs-frontend-api.lib"
-    INTERFACE_INCLUDE_DIRECTORIES "${OBS_SOURCE_DIR}/UI/obs-frontend-api"
+    INTERFACE_INCLUDE_DIRECTORIES "${OBS_SOURCE_DIR}/frontend/api"
 )
 
 set(SOURCES
@@ -88,9 +88,8 @@ target_link_libraries(obs-gemini-captions
 
 # CRITICAL: Wire up include directories exactly as requested by upstream
 target_include_directories(obs-gemini-captions PRIVATE
-    ${OBS_SOURCE_DIR}/UI
+    ${OBS_SOURCE_DIR}/frontend/api
     ${OBS_SOURCE_DIR}/libobs
-    ${OBS_SOURCE_DIR}/UI/obs-frontend-api # For convenince if code uses "obs-frontend-api.h" directly
     src
 )
 

@@ -111,12 +111,12 @@ if (Test-Path $DestSource) {
 Write-Host "Moving extracted source from $SrcRoot to $DestSource..."
 Move-Item -Path $SrcRoot -Destination $DestSource
 
-# Verify Source Integrity
-$RequiredPath = Join-Path $DestSource "UI\obs-frontend-api"
+# Verify Source Integrity (OBS 32+ layout: frontend/api)
+$RequiredPath = Join-Path $DestSource "frontend\api\obs-frontend-api.h"
 if (-not (Test-Path $RequiredPath)) {
     Write-Error "CRITICAL ERROR: Source code installation failed."
-    Write-Error "Expected directory not found: $RequiredPath"
-    Write-Error "Please check if the zip file structure has changed."
+    Write-Error "Expected file not found: $RequiredPath"
+    Write-Error "OBS Source structure might have changed. Checked: frontend\api\obs-frontend-api.h"
     exit 1
 } else {
     Write-Host "Verified source structure: $RequiredPath exists."
@@ -145,6 +145,7 @@ $ObsConfigContent = @"
 #define OBS_PLUGIN_DESTINATION "obs-plugins"
 #define OBS_RELATIVE_PREFIX "../../"
 #define OBS_QT_VERSION 6
+#define OBS_FRONTEND_API_VERSION 1
 #define ON 1
 #define OFF 0
 "@
