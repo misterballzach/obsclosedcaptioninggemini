@@ -26,15 +26,18 @@ We are assuming you are on Windows because that's what most streamers use.
     *   In the "Select Components" screen:
         *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.6 or 6.7).
         *   Check **MSVC 2019 64-bit** (or MSVC 2022 if available).
-        *   Also looks for "Qt Network" or just install "Qt" base.
+        *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
-4.  **OBS Studio Source Code**
-    *   Go to: [https://github.com/obsproject/obs-studio](https://github.com/obsproject/obs-studio)
-    *   Click the green **Code** button -> **Download ZIP**.
-    *   Extract it somewhere simple like `C:\obs-studio`.
-    *   **Note:** You might need to "build" OBS itself first for this plugin to work perfectly, but often you can just point to the libraries. The easiest way for a "Total Idiot" is to find a "Pre-compiled SDK" if one exists, but let's assume we have to build it.
-    *   *Actually, simpler path:* Just try to build the plugin. If it complains about missing OBS files, you'll need the "libobs" folder.
+4.  **OBS Studio Libraries (The "libobs" stuff)**
+    *   CMake needs to know where OBS is to build the plugin.
+    *   **Option A (Hard):** Build OBS Studio from source.
+    *   **Option B (Easy):** You still need the source code.
+        *   Go to: [https://github.com/obsproject/obs-studio](https://github.com/obsproject/obs-studio)
+        *   Click **Code** -> **Download ZIP**. Extract to `C:\obs-studio`.
+        *   **Important:** You also need the "libs" (compiled files).
+        *   If you can't build OBS, you might be stuck. But we will try to just point CMake to the headers.
+        *   *Tip:* Sometimes you can grab the "CI Artifacts" (obs-studio-x64-dev.zip) from the OBS GitHub Actions page if you have a GitHub account. This is the "proper" SDK. Extract it to `C:\obs-sdk`.
 
 ---
 
@@ -53,13 +56,16 @@ We are assuming you are on Windows because that's what most streamers use.
     *   Click Finish.
 
 4.  **Fix the Errors (The Red Text)**
-    *   CMake will yell at you in red text. Don't panic.
-    *   It will say `Qt6_DIR not found`.
-        *   Find the entry `Qt6_DIR`.
-        *   Click the value field. Browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
-    *   It will say `LibObs not found`.
-        *   You need to point `LIBOBS_INCLUDE_DIRS` to your `obs-studio/libobs` folder.
-        *   You need to point `LIBOBS_LIBRARIES` to the `obs.lib` file (you might need to download the "CI Artifacts" from OBS GitHub actions to get these pre-built if you don't want to build OBS yourself).
+    *   CMake will yell at you. This is normal.
+    *   **Qt6_DIR not found:**
+        *   Find `Qt6_DIR`. Click the value field. Browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
+    *   **LibObs not found (The big error):**
+        *   You will see fields named `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB`.
+        *   **LIBOBS_INCLUDE_DIR:** Browse to `C:\obs-studio\libobs` (or `C:\obs-sdk\include\libobs`).
+        *   **LIBOBS_LIB:** Browse to `C:\obs-studio\build\libobs\Release\obs.lib` (or `C:\obs-sdk\bin\64bit\obs.lib`).
+    *   **ObsFrontendApi not found:**
+        *   **OBS_FRONTEND_API_INCLUDE_DIR:** Browse to `C:\obs-studio\UI\obs-frontend-api` (or `C:\obs-sdk\include\obs-frontend-api`).
+        *   **OBS_FRONTEND_API_LIB:** Browse to `C:\obs-studio\build\UI\obs-frontend-api\Release\obs-frontend-api.lib` (or `C:\obs-sdk\bin\64bit\obs-frontend-api.lib`).
     *   **Click Configure again** until the red text is gone.
 
 5.  **Click "Generate"**

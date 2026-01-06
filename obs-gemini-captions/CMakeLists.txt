@@ -9,12 +9,17 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Add local cmake modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 find_package(LibObs REQUIRED)
+find_package(ObsFrontendApi REQUIRED) # Using our custom finder or standard if available
 find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 
 include_directories(${LIBOBS_INCLUDE_DIRS})
+include_directories(${OBS_FRONTEND_API_INCLUDE_DIRS})
 
 set(SOURCES
     src/plugin-main.cpp
@@ -36,8 +41,8 @@ add_library(obs-gemini-captions MODULE ${SOURCES} ${HEADERS})
 
 target_link_libraries(obs-gemini-captions
     PRIVATE
-    libobs
-    obs-frontend-api
+    LibObs::LibObs
+    ObsFrontendApi::ObsFrontendApi
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
