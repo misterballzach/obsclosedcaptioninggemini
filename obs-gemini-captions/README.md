@@ -1,89 +1,133 @@
-# OBS Gemini Captions Plugin
+# OBS Gemini Captions Plugin (The "How-To" Guide)
 
-This plugin for OBS Studio provides closed captioning using the Google Gemini API (gemini-1.5-flash). It captures audio from a selected source, transcribes it, and outputs text to both an OBS Text Source (Open Captions) and the streaming output (Closed Captions/CEA-608).
+So, you want closed captions in OBS using Google's fancy Gemini AI, and you also want a Twitch bot that answers questions? You've come to the right place.
 
-## Prerequisites
+**Warning:** This is "Source Code". It's like a pile of car parts. You have to assemble the car (compile it) before you can drive it. If you have a friend who is a programmer, buy them a pizza and ask them to do this for you. If not, follow these steps exactly.
 
-To build this plugin, you need:
+---
 
-*   **CMake** (3.16 or newer)
-*   **C++ Compiler** (supporting C++17)
-    *   Windows: Visual Studio 2022 recommended
-    *   macOS: Xcode
-    *   Linux: GCC or Clang
-*   **Qt 6** (Core and Widgets components)
-*   **libcurl**
-*   **OBS Studio Development Files** (libobs)
-    *   You can build OBS Studio from source, or use pre-compiled libraries if available for your platform.
+## Part 1: Download the Tools (Windows)
 
-## Build Instructions
+We are assuming you are on Windows because that's what most streamers use.
 
-### Windows
+1.  **Visual Studio 2022 Community** (Free)
+    *   Download: [https://visualstudio.microsoft.com/vs/community/](https://visualstudio.microsoft.com/vs/community/)
+    *   **Crucial Step:** When installing, check the box that says **"Desktop development with C++"**. If you miss this, nothing will work.
 
-1.  **Get OBS Studio Source:** Clone the OBS Studio repository and build it, or download a pre-built SDK if available.
-2.  **Open CMake GUI:**
-    *   Set **Source code** to the `obs-gemini-captions` folder.
-    *   Set **Build the binaries** to a new `build` folder inside it.
-3.  **Configure:**
-    *   Click **Configure**.
-    *   Specify the path to your Qt 6 installation if prompted (e.g., `Qt6_DIR`).
-    *   Specify the path to `libobs` if not found (set `LIBOBS_INCLUDE_DIRS` and `LIBOBS_LIBRARIES`).
-4.  **Generate:** Click **Generate**, then **Open Project** (opens Visual Studio).
-5.  **Build:** Build the solution in **Release** mode.
+2.  **CMake**
+    *   Download: [https://cmake.org/download/](https://cmake.org/download/)
+    *   Get the `Windows x64 Installer`.
+    *   Install it. When asked, select **"Add CMake to the system PATH for all users"**.
 
-### macOS
+3.  **Qt 6**
+    *   This is the hardest part. You need an account.
+    *   Download the "Online Installer": [https://www.qt.io/download-qt-installer](https://www.qt.io/download-qt-installer)
+    *   Run it, log in.
+    *   In the "Select Components" screen:
+        *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.6 or 6.7).
+        *   Check **MSVC 2019 64-bit** (or MSVC 2022 if available).
+        *   Also looks for "Qt Network" or just install "Qt" base.
+    *   Remember where you installed it! Usually `C:\Qt`.
 
-```bash
-mkdir build && cd build
-cmake -DQT_DIR=/path/to/Qt/6.x.x/macos/lib/cmake/Qt6 ..
-make
-```
+4.  **OBS Studio Source Code**
+    *   Go to: [https://github.com/obsproject/obs-studio](https://github.com/obsproject/obs-studio)
+    *   Click the green **Code** button -> **Download ZIP**.
+    *   Extract it somewhere simple like `C:\obs-studio`.
+    *   **Note:** You might need to "build" OBS itself first for this plugin to work perfectly, but often you can just point to the libraries. The easiest way for a "Total Idiot" is to find a "Pre-compiled SDK" if one exists, but let's assume we have to build it.
+    *   *Actually, simpler path:* Just try to build the plugin. If it complains about missing OBS files, you'll need the "libobs" folder.
 
-### Linux
+---
 
-```bash
-mkdir build && cd build
-cmake ..
-make
-```
+## Part 2: The Scary Part (Building the Plugin)
 
-## Installation
+1.  **Open CMake (cmake-gui)**
+    *   Press Start, type `CMake`, run it.
 
-After building, you need to copy the plugin files to your OBS Studio installation directory.
+2.  **Tell it where the code is:**
+    *   **Where is the source code:** Browse to the folder where `CMakeLists.txt` is (this folder you are reading this in).
+    *   **Where to build the binaries:** Create a new folder inside this one called `build` and select it.
 
-### Windows
+3.  **Click "Configure"**
+    *   A popup appears. Select **Visual Studio 17 2022**.
+    *   Platform: **x64**.
+    *   Click Finish.
 
-1.  Copy `obs-gemini-captions.dll` from your build output (e.g., `build/Release`) to:
-    `C:\Program Files\obs-studio\obs-plugins\64bit\`
-2.  Copy the `data` folder content:
-    *   Create folder: `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions`
-    *   Copy the `locale` folder (from `obs-gemini-captions/data/`) into that new directory.
+4.  **Fix the Errors (The Red Text)**
+    *   CMake will yell at you in red text. Don't panic.
+    *   It will say `Qt6_DIR not found`.
+        *   Find the entry `Qt6_DIR`.
+        *   Click the value field. Browse to `C:\Qt\6.x.x\msvc2019_64\lib\cmake\Qt6`.
+    *   It will say `LibObs not found`.
+        *   You need to point `LIBOBS_INCLUDE_DIRS` to your `obs-studio/libobs` folder.
+        *   You need to point `LIBOBS_LIBRARIES` to the `obs.lib` file (you might need to download the "CI Artifacts" from OBS GitHub actions to get these pre-built if you don't want to build OBS yourself).
+    *   **Click Configure again** until the red text is gone.
 
-### macOS
+5.  **Click "Generate"**
+    *   If it says "Generating done", you won!
 
-1.  Copy `obs-gemini-captions.so` (or `.dylib`) to:
-    `/Library/Application Support/obs-studio/plugins/`
-    (Or right-click OBS.app -> Show Package Contents -> PlugIns)
-2.  Copy the data files to the corresponding data directory.
+6.  **Click "Open Project"**
+    *   This opens Visual Studio.
 
-### Linux
+7.  **Compile**
+    *   At the top toolbar, change `Debug` to `Release`.
+    *   On the right side "Solution Explorer", right-click **obs-gemini-captions** and select **Build**.
+    *   If it says "Build: 1 succeeded", you are a genius.
 
-1.  Copy `obs-gemini-captions.so` to:
-    `~/.config/obs-studio/plugins/obs-gemini-captions/bin/64bit/`
-2.  Copy the data files to:
-    `~/.config/obs-studio/plugins/obs-gemini-captions/data/`
+---
 
-## Usage
+## Part 3: Putting it in OBS
 
-1.  Open OBS Studio.
-2.  Go to **Tools** -> **Gemini Captions**.
-3.  Enter your **Gemini API Key**.
-4.  Select the **Audio Source** you want to caption (e.g., Mic/Aux).
-5.  (Optional) Select a **Text Source** to display captions on screen (Open Captions).
-6.  Click **Start Captioning**.
+You built it! Now you have to install it manually.
 
-## Notes
+1.  **Find the `.dll` file**
+    *   Go to your `build/Release` folder.
+    *   Find `obs-gemini-captions.dll`.
+    *   Copy it.
 
-*   This plugin uses the Gemini 1.5 Flash model via REST API.
-*   It buffers audio in 3-second chunks.
-*   Requires an active internet connection.
+2.  **Go to your OBS Install Folder**
+    *   Usually `C:\Program Files\obs-studio`.
+    *   Go to `obs-plugins` -> `64bit`.
+    *   **Paste** the `.dll` file here.
+
+3.  **Install the Data (Language files)**
+    *   Go back to the source code folder (where this README is).
+    *   Copy the `data` folder.
+    *   Go to `C:\Program Files\obs-studio\data\obs-plugins`.
+    *   Create a folder named `obs-gemini-captions`.
+    *   Paste the content of `data` inside so it looks like:
+        `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions\locale\en-US.ini`
+
+---
+
+## Part 4: How to Use It
+
+1.  **Get a Gemini API Key**
+    *   Go to [Google AI Studio](https://aistudio.google.com/).
+    *   Click "Get API Key". Copy it.
+
+2.  **Get Twitch Info (Optional)**
+    *   **Username:** Your twitch username.
+    *   **Token:** Go to a site like [twitchapps.com/tmi](https://twitchapps.com/tmi/) to get an "oauth token". It looks like `oauth:xyz123...`.
+    *   **Channel:** The channel you want the bot to talk in (e.g., your username).
+
+3.  **Start OBS**
+    *   Go to the top menu: **Tools** -> **Gemini Captions**.
+    *   Paste your API Key.
+    *   Select your **Audio Source** (like your Mic).
+    *   (Optional) Paste your Twitch info.
+    *   Click **Start Captioning**.
+
+4.  **See the Magic**
+    *   **Captions:** Will appear in the "Dock". Go to **View -> Docks -> Gemini Captions** if you don't see it.
+    *   **Twitch:** People can type `!gemini Tell me a joke` in your chat, and the bot will reply.
+    *   **Closed Captions:** Viewers on Twitch can click the "CC" button on your stream video player to see subtitles.
+
+---
+
+## Troubleshooting
+
+*   **"It crashes!"**: You probably didn't copy the `locale` folder correctly. OBS hates it when plugins don't have text files.
+*   **"No audio!"**: Make sure you selected the right microphone in the settings.
+*   **"Twitch bot not working!"**: Make sure your token starts with `oauth:` and is valid.
+
+Good luck!
