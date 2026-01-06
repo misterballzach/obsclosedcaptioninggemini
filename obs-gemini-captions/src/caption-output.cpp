@@ -3,11 +3,6 @@
 #include <obs.h>
 #include <obs-frontend-api.h>
 
-// Helper to access the hypothetical CEA-608 API if it exists or generic text output
-// OBS has `obs_output_output_caption_text1` or similar but it is not always exported in headers.
-// However, looking at OBS source, `obs_output_output_caption_text1` takes `obs_output_t*`, `const char *text`, `double display_duration`.
-// But to use it, we need to find the streaming output.
-
 void UpdateCaption(const std::string& text)
 {
     // 1. Update Text Source (Open Captions)
@@ -24,20 +19,16 @@ void UpdateCaption(const std::string& text)
     }
 
     // 2. Send Closed Captions (CEA-608) to Streaming Output
-    // We get the active streaming output.
+    // This is what Twitch uses for integrated captions.
     obs_output_t *output = obs_frontend_get_streaming_output();
     if (output) {
-        // NOTE: `obs_output_output_caption_text1` is the API for sending captions.
-        // It requires `libobs/obs-output.h`.
-        // If the function is not available, this might fail to link if we don't weak link or if headers are old.
-        // Assuming OBS 32.0 headers:
-        // void obs_output_output_caption_text1(obs_output_t *output, const char *text, double display_duration);
-
-        // Use a reasonable display duration, e.g., 2.0 seconds or calculate based on text length.
+        // Use a reasonable display duration, e.g., 3.0 seconds.
         obs_output_output_caption_text1(output, text.c_str(), 3.0);
-
         obs_output_release(output);
     }
+
+    // 3. Update UI Dock
+    AppendTextToDock(text);
 
     // Also try recording output if active?
     obs_output_t *rec_output = obs_frontend_get_recording_output();

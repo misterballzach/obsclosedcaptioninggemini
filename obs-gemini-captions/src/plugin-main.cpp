@@ -9,6 +9,7 @@
 #include <QMainWindow>
 #include <filesystem>
 #include <mutex>
+#include <QDateTime>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-gemini-captions", "en-US")
@@ -19,15 +20,53 @@ MODULE_EXPORT const char *obs_module_description(void)
 }
 
 static GeminiCaptionsDialog *settingsDialog = nullptr;
+static CaptionDock *captionDock = nullptr;
 static bool captioningActive = false;
 static std::string g_apiKey;
 static std::string g_audioSource;
 static std::string g_textSource;
-static std::mutex g_settingsMutex; // Protect global settings
+static std::mutex g_settingsMutex;
 
+// CaptionDock Implementation
+CaptionDock::CaptionDock(QWidget *parent) : QDockWidget(parent)
+{
+    setWindowTitle(obs_module_text("GeminiCaptions"));
+    setObjectName("GeminiCaptionsDock"); // Unique name for saving layout state
+
+    textDisplay = new QTextEdit(this);
+    textDisplay->setReadOnly(true);
+    textDisplay->setPlaceholderText("Captions will appear here...");
+
+    setWidget(textDisplay);
+}
+
+void CaptionDock::AppendText(const QString &text)
+{
+    // Ensure we are on UI thread
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, text]() {
+            AppendText(text);
+        });
+        return;
+    }
+
+    QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss");
+    textDisplay->append(QString("[%1] %2").arg(timestamp, text));
+    // Scroll to bottom
+    textDisplay->moveCursor(QTextCursor::End);
+}
+
+void AppendTextToDock(const std::string& text)
+{
+    if (captionDock) {
+        captionDock->AppendText(QString::fromStdString(text));
+    }
+}
+
+// GeminiCaptionsDialog Implementation (Existing)
 GeminiCaptionsDialog::GeminiCaptionsDialog(QWidget *parent) : QDialog(parent)
 {
-    setWindowTitle("Gemini Captions Settings");
+    setWindowTitle(obs_module_text("GeminiCaptions"));
     setMinimumWidth(400);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
@@ -99,7 +138,7 @@ void GeminiCaptionsDialog::loadSettings()
     if (!config_path) return;
 
     obs_data_t *settings = obs_data_create_from_json_file(config_path);
-    bfree(config_path); // obs_module_get_config_path returns malloc'd string
+    bfree(config_path);
 
     if (!settings) return;
 
@@ -181,7 +220,12 @@ bool obs_module_load(void)
 {
     obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig);
 
-    // Load initial settings into globals
+    // Create Dock
+    QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
+    captionDock = new CaptionDock(main);
+    obs_frontend_add_dock(captionDock);
+
+    // Load initial settings
     char *config_path = obs_module_get_config_path(obs_current_module(), "settings.json");
     if (config_path) {
         obs_data_t *settings = obs_data_create_from_json_file(config_path);
