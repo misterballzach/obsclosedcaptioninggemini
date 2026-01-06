@@ -102,9 +102,25 @@ function Generate-Lib {
 # 1. Install Source Code (CRITICAL for modern OBS dev)
 Write-Host "Installing Source Code to $SdkDir\source..."
 $DestSource = Join-Path $SdkDir "source"
-if (Test-Path $DestSource) { Remove-Item -Recurse -Force $DestSource }
-# Move the extracted inner folder (obs-studio-x.y.z) to destination
+
+if (Test-Path $DestSource) {
+    Write-Host "Removing old source directory..."
+    Remove-Item -Recurse -Force $DestSource
+}
+
+Write-Host "Moving extracted source from $SrcRoot to $DestSource..."
 Move-Item -Path $SrcRoot -Destination $DestSource
+
+# Verify Source Integrity
+$RequiredPath = Join-Path $DestSource "UI\obs-frontend-api"
+if (-not (Test-Path $RequiredPath)) {
+    Write-Error "CRITICAL ERROR: Source code installation failed."
+    Write-Error "Expected directory not found: $RequiredPath"
+    Write-Error "Please check if the zip file structure has changed."
+    exit 1
+} else {
+    Write-Host "Verified source structure: $RequiredPath exists."
+}
 
 # 2. Setup Bin Dirs & Generate Libs
 Write-Host "Generating libraries..."
@@ -120,7 +136,6 @@ Generate-Lib (Join-Path $BinSdkDir "obs.dll") (Join-Path $BinSdkDir "obs.lib")
 Generate-Lib (Join-Path $BinSdkDir "obs-frontend-api.dll") (Join-Path $BinSdkDir "obs-frontend-api.lib")
 
 # 3. Generate obsconfig.h (Required for compilation)
-# We place this in the source tree under libobs so CMake can find it cleanly if we include libobs dir
 Write-Host "Generating obsconfig.h..."
 $ObsConfigContent = @"
 #pragma once
@@ -140,5 +155,6 @@ Write-Host "Cleaning up temp files..."
 Remove-Item -Recurse -Force $WorkDir
 
 Write-Host "Success! OBS SDK installed to $SdkDir" -ForegroundColor Green
-Write-Host "Source code is available at: $DestSource"
-Write-Host "Libraries are available at: $BinSdkDir"
+Write-Host "Source code is at: $DestSource"
+Write-Host "Libraries are at: $BinSdkDir"
+Write-Host "You can now run CMake."

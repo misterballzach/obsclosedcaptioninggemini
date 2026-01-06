@@ -23,6 +23,25 @@ set(OBS_BIN_DIR "${OBS_SDK_PATH}/bin/64bit")
 message(STATUS "Using OBS Source Dir: ${OBS_SOURCE_DIR}")
 message(STATUS "Using OBS Lib Dir: ${OBS_BIN_DIR}")
 
+# Sanity Check for Source Dir
+if(NOT EXISTS "${OBS_SOURCE_DIR}/UI/obs-frontend-api")
+    message(FATAL_ERROR "
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    CRITICAL CONFIGURATION ERROR:
+    OBS Source Code is missing or incomplete at:
+    ${OBS_SOURCE_DIR}/UI/obs-frontend-api
+
+    You MUST run 'setup-sdk.ps1' (as Administrator, in VS2022 x64 CMD)
+    to download and install the OBS SDK correctly.
+
+    The script will create C:/obs-sdk/source/UI/obs-frontend-api
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ")
+endif()
+
+# Suppress harmless Vulkan warning if not found
+find_package(Vulkan QUIET)
+
 find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
 find_package(Threads REQUIRED)
 
