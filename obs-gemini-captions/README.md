@@ -29,15 +29,22 @@ We are assuming you are on Windows because that's what most streamers use.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
-4.  **OBS Studio SDK (Important!)**
-    *   You CANNOT just use the "Source Code" zip file from GitHub. It is missing the `.lib` files needed to compile plugins.
-    *   **You need the OBS Studio SDK.**
-    *   **Where to get it:**
-        *   Go to the [OBS GitHub Actions page](https://github.com/obsproject/obs-studio/actions).
-        *   Click on the latest "CI" workflow run that passed (green checkmark).
-        *   Scroll down to **Artifacts**.
-        *   Download `windows-x64-sdk` (or similar name).
-        *   **Extract this folder** to `C:\obs-sdk`.
+4.  **OBS Studio SDK (The Most Important Part)**
+    *   You CANNOT use the "Source Code" zip.
+    *   You CANNOT use the "Installer" or the "Binaries" zip.
+    *   You **MUST** use the **SDK**.
+
+    *   **Instructions:**
+        1.  Go to the official [OBS Studio Releases Page](https://github.com/obsproject/obs-studio/releases).
+        2.  Find the latest "Latest" release (e.g., 30.2.x or 31.x).
+            *   *Do NOT use "Pre-release" unless you know what you are doing.*
+        3.  Scroll down to the **Assets** section (click to expand if needed).
+        4.  **Download the file ending in `-sdk.zip`**.
+            *   Example: `obs-studio-30.2.2-windows-x64-sdk.zip`.
+            *   *If you do not see this file, go back and check a different version.*
+        5.  **Extract this folder** to `C:\obs-sdk`.
+            *   Inside `C:\obs-sdk`, you should see folders like `bin`, `include`, and `cmake`.
+            *   Inside `bin\64bit`, you MUST see `obs.lib`. If you don't, you downloaded the wrong thing.
 
 ---
 
@@ -116,6 +123,9 @@ We are assuming you are on Windows because that's what most streamers use.
 *   **"CRITICAL CONFIGURATION ERROR: You selected a SOURCE CODE file"**:
     *   You pointed CMake to `obs.h` or `obs.c` instead of `obs.lib`.
     *   Download the **OBS SDK** (not Source Code) and point to `bin/64bit/obs.lib`.
+
+*   **"I checked GitHub Actions and there is no SDK!"**:
+    *   Stop checking GitHub Actions. Go to the **Releases** page as described in Part 1.
 
 *   **"Qt6_DIR points to mingw_64"**: Use "MinGW Makefiles" generator in CMake.
 

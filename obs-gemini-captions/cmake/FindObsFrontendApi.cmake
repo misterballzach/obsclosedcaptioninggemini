@@ -40,7 +40,7 @@ if(OBS_FRONTEND_API_LIB)
 
         CMake expects a compiled library file (ending in .lib on Windows).
 
-        Please download the OBS Studio SDK Artifacts from GitHub Actions.
+        Please download the OBS Studio SDK from GitHub Releases (look for -sdk.zip).
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ")
     endif()

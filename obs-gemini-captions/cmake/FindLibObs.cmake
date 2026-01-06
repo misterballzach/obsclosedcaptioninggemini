@@ -37,10 +37,12 @@ if(LIBOBS_LIB)
         The Source Code zip does NOT contain the required .lib files.
 
         SOLUTION:
-        1. Go to https://github.com/obsproject/obs-studio/actions
-        2. Click the latest successful run.
-        3. Scroll down to Artifacts and download 'windows-x64-sdk'.
+        1. Go to https://github.com/obsproject/obs-studio/releases
+        2. Look for the latest release.
+        3. Download the file ending in '-sdk.zip' (e.g., obs-studio-30.x.x-windows-x64-sdk.zip).
         4. Point LIBOBS_LIB to 'bin/64bit/obs.lib' inside that extracted SDK folder.
+
+        (Alternatively, check GitHub Actions Artifacts for 'windows-x64-sdk')
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ")
     endif()
@@ -55,7 +57,10 @@ if(NOT LIBOBS_LIB)
     You MUST have the 'libs' (compiled files).
 
     RECOMMENDATION:
-    1. Download the 'OBS Studio SDK' (or CI Artifacts) which contains .lib files.
+    1. Download the 'OBS Studio SDK' from the Releases page:
+       https://github.com/obsproject/obs-studio/releases
+       (Look for the zip file ending in '-sdk.zip')
+
     2. OR, Build OBS Studio from source yourself.
 
     Set LIBOBS_LIB to the path of 'obs.lib'.
