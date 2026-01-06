@@ -25,32 +25,30 @@ We are assuming you are on Windows because that's what most streamers use.
     *   In the "Select Components" screen:
         *   Expand **Qt 6.x.x** (pick the latest 6.x version, e.g., 6.10 or 6.8).
         *   **RECOMMENDED:** Check **MSVC 2022 64-bit**.
-        *   **IF YOU MUST USE MINGW:** See the "MinGW Users" section below.
         *   Check **Qt Network** (often included in base, but double check).
     *   Remember where you installed it! Usually `C:\Qt`.
 
-4.  **OBS Studio SDK (The Most Important Part)**
-    *   You CANNOT use the "Source Code" zip.
-    *   You CANNOT use the "Installer" or the "Binaries" zip.
-    *   You **MUST** use the **SDK**.
+---
 
-    *   **Instructions:**
-        1.  Go to the official [OBS Studio Releases Page](https://github.com/obsproject/obs-studio/releases).
-        2.  Find the latest "Latest" release (e.g., 30.2.x or 31.x).
-            *   *Do NOT use "Pre-release" unless you know what you are doing.*
-        3.  Scroll down to the **Assets** section (click to expand if needed).
-        4.  **Download the file ending in `-sdk.zip`**.
-            *   Example: `obs-studio-30.2.2-windows-x64-sdk.zip`.
-            *   *If you do not see this file, go back and check a different version.*
-        5.  **Extract this folder** to `C:\obs-sdk`.
-            *   Inside `C:\obs-sdk`, you should see folders like `bin`, `include`, and `cmake`.
-            *   Inside `bin\64bit`, you MUST see `obs.lib`. If you don't, you downloaded the wrong thing.
+## Part 2: Generate the OBS SDK (IMPORTANT!)
+
+OBS 32.0.4+ no longer provides a pre-compiled SDK. You must generate one using the included script.
+
+1.  **Open the "x64 Native Tools Command Prompt for VS 2022"**.
+    *   Press Windows Key, type "x64 Native", and you should see it.
+    *   **Right-click and Run as Administrator** (needed to write to C:\obs-sdk).
+
+2.  **Go to the plugin folder**.
+    *   Type: `cd C:\path\to\obs-gemini-captions` (change this to where you downloaded this code).
+
+3.  **Run the Setup Script**.
+    *   Type: `powershell -ExecutionPolicy Bypass -File setup-sdk.ps1`
+    *   It will download OBS 32.0.4, extract it, and generate the required `.lib` files.
+    *   Wait for it to say **"Success! OBS SDK installed to C:\obs-sdk"**.
 
 ---
 
-## Part 2: The Scary Part (Building the Plugin)
-
-### Standard Method (MSVC Qt)
+## Part 3: Building the Plugin
 
 1.  **Open CMake (cmake-gui)**.
 2.  **Where is source code:** The folder with `CMakeLists.txt`.
@@ -64,34 +62,12 @@ We are assuming you are on Windows because that's what most streamers use.
     *   Set `Qt6_DIR` to your Qt MSVC folder (e.g., `C:\Qt\6.10.1\msvc2022_64\lib\cmake\Qt6`).
 6.  **Click Configure Again.**
     *   **"Configuring done"** is what you want to see.
-    *   *Note:* You might see red text about `pthread` or `Vulkan`. **Ignore this.** As long as it says "Configuring done" at the bottom, you are safe.
+    *   *Note:* Ignore red text about `pthread` or `Vulkan` if "Configuring done" appears.
 7.  **Generate** -> **Open Project** -> Build in Visual Studio.
 
 ---
 
-### MinGW Users (If you can't install MSVC Qt)
-
-**WARNING:** If you use MinGW Qt, you CANNOT use Visual Studio to build. You must use the MinGW compiler (`gcc`/`g++`).
-**WARNING 2:** A plugin built with MinGW might NOT load in standard OBS Studio (which uses MSVC). It might crash. Proceed at your own risk.
-
-1.  **Open CMake (cmake-gui)**.
-    *   **IMPORTANT:** If you already ran Configure with "Visual Studio", you must click **File -> Delete Cache** first.
-2.  **Configure:**
-    *   Generator: Select **"MinGW Makefiles"**. (Do NOT select Visual Studio).
-    *   Select "Use default native compilers" (if you have MinGW in your PATH).
-3.  **Fix Errors:**
-    *   Set `LIBOBS_INCLUDE_DIR` and `LIBOBS_LIB` as usual.
-    *   Set `Qt6_DIR` to your MinGW Qt folder (e.g., `C:\Qt\6.10.1\mingw_64\lib\cmake\Qt6`).
-4.  **Generate**.
-5.  **Build:**
-    *   You cannot click "Open Project".
-    *   Open a command prompt (cmd) in your `build` folder.
-    *   Type `mingw32-make` (or just `make` if setup that way).
-    *   This will create the `.dll` file.
-
----
-
-## Part 3: Putting it in OBS
+## Part 4: Putting it in OBS
 
 1.  **Find the `.dll` file**
     *   Copy `obs-gemini-captions.dll` from your build folder.
@@ -105,7 +81,7 @@ We are assuming you are on Windows because that's what most streamers use.
 
 ---
 
-## Part 4: How to Use It
+## Part 5: How to Use It
 
 1.  **Get a Gemini API Key** from [Google AI Studio](https://aistudio.google.com/).
 2.  **Start OBS** -> **Tools** -> **Gemini Captions**.
@@ -116,17 +92,14 @@ We are assuming you are on Windows because that's what most streamers use.
 
 ## Troubleshooting
 
-*   **"Configuring done" but I see red text!**:
-    *   If the red text is `pthread` failed or `Vulkan` not found, **Ignore it**. This is normal on Windows.
-    *   If the text is `Could NOT find LibObs`, you need to fix your paths.
+*   **"setup-sdk.ps1 failed!"**:
+    *   Did you run as Administrator?
+    *   Did you use the "x64 Native Tools Command Prompt"? (Normal CMD won't work because it needs `dumpbin`).
 
-*   **"CRITICAL CONFIGURATION ERROR: You selected a SOURCE CODE file"**:
-    *   You pointed CMake to `obs.h` or `obs.c` instead of `obs.lib`.
-    *   Download the **OBS SDK** (not Source Code) and point to `bin/64bit/obs.lib`.
+*   **"Could NOT find LibObs"**:
+    *   Make sure `setup-sdk.ps1` finished successfully and `C:\obs-sdk\bin\64bit\obs.lib` exists.
 
-*   **"I checked GitHub Actions and there is no SDK!"**:
-    *   Stop checking GitHub Actions. Go to the **Releases** page as described in Part 1.
-
-*   **"Qt6_DIR points to mingw_64"**: Use "MinGW Makefiles" generator in CMake.
+*   **"Qt6_DIR points to mingw_64"**:
+    *   Use "MinGW Makefiles" generator in CMake if you are using MinGW, but we strongly recommend MSVC for OBS plugins on Windows.
 
 Good luck!
