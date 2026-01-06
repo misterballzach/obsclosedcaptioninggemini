@@ -45,6 +45,7 @@ OBS 32.0.4+ no longer provides a pre-compiled SDK. You must generate one using t
     *   Type: `powershell -ExecutionPolicy Bypass -File setup-sdk.ps1`
     *   It will download OBS 32.0.4, extract it, and generate the required `.lib` files.
     *   Wait for it to say **"Success! OBS SDK installed to C:\obs-sdk"**.
+    *   **NOTE:** If you see `Cannot open include file: 'obsconfig.h'` later, you MUST re-run this script (we updated it!).
 
 ---
 
@@ -91,6 +92,10 @@ OBS 32.0.4+ no longer provides a pre-compiled SDK. You must generate one using t
 ---
 
 ## Troubleshooting
+
+*   **"Cannot open include file: 'obsconfig.h'"**:
+    *   This file is missing because the previous version of the setup script didn't generate it.
+    *   **SOLUTION:** Run `setup-sdk.ps1` again! It will fix it.
 
 *   **"setup-sdk.ps1 failed!"**:
     *   Did you run as Administrator?

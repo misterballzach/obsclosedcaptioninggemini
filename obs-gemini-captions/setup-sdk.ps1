@@ -111,6 +111,21 @@ $FrontendInc = Join-Path $IncludeDir "obs-frontend-api"
 New-Item -ItemType Directory -Force -Path $FrontendInc | Out-Null
 Copy-Item -Force (Join-Path $SrcRoot "UI\obs-frontend-api\*.h") $FrontendInc
 
+# 3. Generate obsconfig.h (Required for compilation)
+Write-Host "Generating obsconfig.h..."
+$ObsConfigContent = @"
+#pragma once
+#define OBS_VERSION "$Version"
+#define OBS_DATA_PATH "../../data"
+#define OBS_INSTALL_PREFIX ""
+#define OBS_PLUGIN_DESTINATION "obs-plugins"
+#define OBS_RELATIVE_PREFIX "../../"
+#define OBS_QT_VERSION 6
+#define ON 1
+#define OFF 0
+"@
+Set-Content -Path (Join-Path $IncludeDir "libobs\obsconfig.h") -Value $ObsConfigContent
+
 # 2. Setup Bin Dirs & Generate Libs
 Write-Host "Generating libraries..."
 $BinSdkDir = Join-Path $SdkDir "bin\64bit"
