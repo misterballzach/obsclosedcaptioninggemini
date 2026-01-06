@@ -38,22 +38,26 @@ void AudioCapture::startCapture(const QString &sourceName) {
         currentAudioSource = source;
 
         // Use Global Audio Info (OBS 32+)
-        struct audio_output_info info = {};
-        // Use 1-argument signature as per OBS 32.0.4 API
-        audio_output_get_info(&info);
+        // Correct signature: const audio_output_info *audio_output_get_info(const audio_t *audio);
+        const struct audio_output_info *info = audio_output_get_info(obs_get_audio());
 
-        cachedSampleRate = info.samples_per_sec;
-        cachedSpeakers = info.speakers;
+        if (info) {
+            cachedSampleRate = info->samples_per_sec;
+            cachedSpeakers = info->speakers;
 
-        qDebug() << "Started audio capture on source:" << sourceName
-                 << "Global Rate:" << cachedSampleRate
-                 << "Global Layout:" << cachedSpeakers;
+            qDebug() << "Started audio capture on source:" << sourceName
+                     << "Global Rate:" << cachedSampleRate
+                     << "Global Layout:" << cachedSpeakers;
 
-        obs_source_add_audio_capture_callback(source, audioCallback, this);
-        capturing = true;
+            obs_source_add_audio_capture_callback(source, audioCallback, this);
+            capturing = true;
 
-        // Clear buffer on start
-        audioBuffer.clear();
+            // Clear buffer on start
+            audioBuffer.clear();
+        } else {
+             qWarning() << "Failed to get audio output info from OBS";
+             // Can't capture if we don't know the format
+        }
 
     } else {
         qDebug() << "Failed to find source:" << sourceName;
