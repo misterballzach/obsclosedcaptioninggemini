@@ -31,6 +31,12 @@ private:
     QLineEdit *apiKeyEdit;
     QComboBox *audioSourceCombo;
     QComboBox *textSourceCombo;
+
+    // Twitch Settings
+    QLineEdit *twitchUserEdit;
+    QLineEdit *twitchTokenEdit;
+    QLineEdit *twitchChannelEdit;
+
     QPushButton *startStopButton;
 
     void populateSources();
@@ -52,4 +58,7 @@ bool IsCaptioningActive();
 std::string GetGeminiAPIKey();
 std::string GetAudioSourceName();
 std::string GetTextSourceName();
+std::string GetTwitchUser();
+std::string GetTwitchToken();
+std::string GetTwitchChannel();
 void AppendTextToDock(const std::string& text);

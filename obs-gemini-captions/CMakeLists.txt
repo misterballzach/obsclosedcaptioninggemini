@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(LibObs REQUIRED)
-find_package(Qt6 COMPONENTS Core Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Widgets Network REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -21,6 +21,7 @@ set(SOURCES
     src/audio-capture.cpp
     src/gemini-client.cpp
     src/caption-output.cpp
+    src/twitch-bot.cpp
 )
 
 set(HEADERS
@@ -28,6 +29,7 @@ set(HEADERS
     src/audio-capture.h
     src/gemini-client.h
     src/caption-output.h
+    src/twitch-bot.h
 )
 
 add_library(obs-gemini-captions MODULE ${SOURCES} ${HEADERS})
@@ -38,6 +40,7 @@ target_link_libraries(obs-gemini-captions
     obs-frontend-api
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     ${CURL_LIBRARIES}
     Threads::Threads
 )
@@ -60,7 +63,5 @@ install(DIRECTORY data/locale DESTINATION "data/obs-plugins/obs-gemini-captions"
 if(WIN32)
     install(TARGETS obs-gemini-captions DESTINATION "obs-plugins/64bit")
 else()
-    # Linux/Mac usually use lib/obs-plugins or similar, but CMAKE_INSTALL_PREFIX usually points to the OBS root or a staging dir.
-    # We'll use a standard relative path.
     install(TARGETS obs-gemini-captions DESTINATION "obs-plugins/64bit")
 endif()

@@ -1,6 +1,7 @@
 #include "plugin-main.h"
 #include "audio-capture.h"
 #include "gemini-client.h"
+#include "twitch-bot.h"
 #include <obs.h>
 #include <obs-module.h>
 #include <util/config-file.h>
@@ -21,10 +22,17 @@ MODULE_EXPORT const char *obs_module_description(void)
 
 static GeminiCaptionsDialog *settingsDialog = nullptr;
 static CaptionDock *captionDock = nullptr;
+static TwitchBot *twitchBot = nullptr;
 static bool captioningActive = false;
+
+// Settings Globals
 static std::string g_apiKey;
 static std::string g_audioSource;
 static std::string g_textSource;
+static std::string g_twitchUser;
+static std::string g_twitchToken;
+static std::string g_twitchChannel;
+
 static std::mutex g_settingsMutex;
 
 // CaptionDock Implementation
@@ -63,7 +71,7 @@ void AppendTextToDock(const std::string& text)
     }
 }
 
-// GeminiCaptionsDialog Implementation (Existing)
+// GeminiCaptionsDialog Implementation
 GeminiCaptionsDialog::GeminiCaptionsDialog(QWidget *parent) : QDialog(parent)
 {
     setWindowTitle(obs_module_text("GeminiCaptions"));
@@ -71,6 +79,7 @@ GeminiCaptionsDialog::GeminiCaptionsDialog(QWidget *parent) : QDialog(parent)
 
     QVBoxLayout *layout = new QVBoxLayout(this);
 
+    // Gemini Settings
     layout->addWidget(new QLabel(obs_module_text("ApiKey")));
     apiKeyEdit = new QLineEdit(this);
     apiKeyEdit->setEchoMode(QLineEdit::Password);
@@ -83,6 +92,22 @@ GeminiCaptionsDialog::GeminiCaptionsDialog(QWidget *parent) : QDialog(parent)
     layout->addWidget(new QLabel(obs_module_text("TextSource")));
     textSourceCombo = new QComboBox(this);
     layout->addWidget(textSourceCombo);
+
+    // Twitch Settings
+    layout->addWidget(new QLabel("--- Twitch Integration ---"));
+
+    layout->addWidget(new QLabel(obs_module_text("TwitchUser")));
+    twitchUserEdit = new QLineEdit(this);
+    layout->addWidget(twitchUserEdit);
+
+    layout->addWidget(new QLabel(obs_module_text("TwitchToken")));
+    twitchTokenEdit = new QLineEdit(this);
+    twitchTokenEdit->setEchoMode(QLineEdit::Password);
+    layout->addWidget(twitchTokenEdit);
+
+    layout->addWidget(new QLabel(obs_module_text("TwitchChannel")));
+    twitchChannelEdit = new QLineEdit(this);
+    layout->addWidget(twitchChannelEdit);
 
     startStopButton = new QPushButton(obs_module_text("StartCaptioning"), this);
     connect(startStopButton, &QPushButton::clicked, this, &GeminiCaptionsDialog::onToggleStartStop);
@@ -146,6 +171,10 @@ void GeminiCaptionsDialog::loadSettings()
     const char *audio = obs_data_get_string(settings, "audio_source");
     const char *text = obs_data_get_string(settings, "text_source");
 
+    const char *twitchUser = obs_data_get_string(settings, "twitch_user");
+    const char *twitchToken = obs_data_get_string(settings, "twitch_token");
+    const char *twitchChannel = obs_data_get_string(settings, "twitch_channel");
+
     apiKeyEdit->setText(key);
 
     int audioIdx = audioSourceCombo->findText(audio);
@@ -154,10 +183,17 @@ void GeminiCaptionsDialog::loadSettings()
     int textIdx = textSourceCombo->findText(text);
     if (textIdx >= 0) textSourceCombo->setCurrentIndex(textIdx);
 
+    twitchUserEdit->setText(twitchUser);
+    twitchTokenEdit->setText(twitchToken);
+    twitchChannelEdit->setText(twitchChannel);
+
     std::lock_guard<std::mutex> lock(g_settingsMutex);
     g_apiKey = key;
     g_audioSource = audio;
     g_textSource = text;
+    g_twitchUser = twitchUser;
+    g_twitchToken = twitchToken;
+    g_twitchChannel = twitchChannel;
 
     obs_data_release(settings);
 }
@@ -173,6 +209,10 @@ void GeminiCaptionsDialog::saveSettings()
     obs_data_set_string(settings, "audio_source", audioSourceCombo->currentText().toUtf8().constData());
     obs_data_set_string(settings, "text_source", textSourceCombo->currentText().toUtf8().constData());
 
+    obs_data_set_string(settings, "twitch_user", twitchUserEdit->text().toUtf8().constData());
+    obs_data_set_string(settings, "twitch_token", twitchTokenEdit->text().toUtf8().constData());
+    obs_data_set_string(settings, "twitch_channel", twitchChannelEdit->text().toUtf8().constData());
+
     obs_data_save_json_safe(settings, config_path, "tmp", "bak");
 
     {
@@ -180,6 +220,9 @@ void GeminiCaptionsDialog::saveSettings()
         g_apiKey = apiKeyEdit->text().toStdString();
         g_audioSource = audioSourceCombo->currentText().toStdString();
         g_textSource = textSourceCombo->currentText().toStdString();
+        g_twitchUser = twitchUserEdit->text().toStdString();
+        g_twitchToken = twitchTokenEdit->text().toStdString();
+        g_twitchChannel = twitchChannelEdit->text().toStdString();
     }
 
     obs_data_release(settings);
@@ -225,6 +268,9 @@ bool obs_module_load(void)
     captionDock = new CaptionDock(main);
     obs_frontend_add_dock(captionDock);
 
+    // Initialize Twitch Bot (lived on main thread)
+    twitchBot = new TwitchBot(main);
+
     // Load initial settings
     char *config_path = obs_module_get_config_path(obs_current_module(), "settings.json");
     if (config_path) {
@@ -234,6 +280,9 @@ bool obs_module_load(void)
             g_apiKey = obs_data_get_string(settings, "api_key");
             g_audioSource = obs_data_get_string(settings, "audio_source");
             g_textSource = obs_data_get_string(settings, "text_source");
+            g_twitchUser = obs_data_get_string(settings, "twitch_user");
+            g_twitchToken = obs_data_get_string(settings, "twitch_token");
+            g_twitchChannel = obs_data_get_string(settings, "twitch_channel");
             obs_data_release(settings);
         }
         bfree(config_path);
@@ -245,6 +294,10 @@ bool obs_module_load(void)
 void obs_module_unload(void)
 {
     StopCaptioning();
+    if (twitchBot) {
+        delete twitchBot;
+        twitchBot = nullptr;
+    }
 }
 
 std::string GetGeminiAPIKey() {
@@ -262,28 +315,54 @@ std::string GetTextSourceName() {
     return g_textSource;
 }
 
+std::string GetTwitchUser() {
+    std::lock_guard<std::mutex> lock(g_settingsMutex);
+    return g_twitchUser;
+}
+
+std::string GetTwitchToken() {
+    std::lock_guard<std::mutex> lock(g_settingsMutex);
+    return g_twitchToken;
+}
+
+std::string GetTwitchChannel() {
+    std::lock_guard<std::mutex> lock(g_settingsMutex);
+    return g_twitchChannel;
+}
+
 void StartCaptioning()
 {
     if (captioningActive) return;
 
-    std::string key, source;
+    std::string key, source, twUser, twToken, twChan;
     {
         std::lock_guard<std::mutex> lock(g_settingsMutex);
         key = g_apiKey;
         source = g_audioSource;
+        twUser = g_twitchUser;
+        twToken = g_twitchToken;
+        twChan = g_twitchChannel;
     }
 
-    if (key.empty() || source.empty()) {
-        blog(LOG_WARNING, "Cannot start captioning: API Key or Audio Source missing.");
+    if (key.empty()) {
+        blog(LOG_WARNING, "Cannot start captioning: API Key missing.");
         return;
     }
 
     blog(LOG_INFO, "Starting Gemini Captioning...");
 
-    if (StartAudioCapture(source)) {
-        captioningActive = true;
+    if (!source.empty()) {
+        if (StartAudioCapture(source)) {
+            captioningActive = true;
+        } else {
+            blog(LOG_ERROR, "Failed to start audio capture.");
+        }
     } else {
-        blog(LOG_ERROR, "Failed to start audio capture.");
+         captioningActive = true; // Still allow if only bot is wanted? But "Start Captioning" implies captions.
+    }
+
+    if (!twUser.empty() && !twToken.empty() && !twChan.empty()) {
+        if (twitchBot) twitchBot->Connect();
     }
 }
 
@@ -293,6 +372,7 @@ void StopCaptioning()
 
     blog(LOG_INFO, "Stopping Gemini Captioning...");
     StopAudioCapture();
+    if (twitchBot) twitchBot->Disconnect();
     captioningActive = false;
 }
 

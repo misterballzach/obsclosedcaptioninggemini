@@ -68,10 +68,6 @@ std::string ExtractTextFromJson(const std::string& json) {
     obs_data_t *data = obs_data_create_from_json(json.c_str());
     if (!data) return "";
 
-    // Navigate JSON: candidates[0].content.parts[0].text
-    // Structure of Gemini response:
-    // { "candidates": [ { "content": { "parts": [ { "text": "..." } ] } } ] }
-
     std::string result = "";
 
     obs_data_array_t *candidates = obs_data_get_array(data, "candidates");
@@ -103,17 +99,61 @@ std::string ExtractTextFromJson(const std::string& json) {
     return result;
 }
 
-void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
+void PerformGeminiRequest(const std::string& jsonPayload, std::function<void(std::string)> callback = nullptr)
 {
     std::string apiKey = GetGeminiAPIKey();
     if (apiKey.empty()) return;
 
+    CURL *curl;
+    CURLcode res;
+    std::string readBuffer;
+
+    curl = curl_easy_init();
+    if(curl) {
+        std::string url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+
+        struct curl_slist *headers = NULL;
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonPayload.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        // Timeout to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // Increased timeout for text generation
+
+        res = curl_easy_perform(curl);
+
+        if(res != CURLE_OK) {
+            blog(LOG_ERROR, "Gemini API request failed: %s", curl_easy_strerror(res));
+        } else {
+            std::string text = ExtractTextFromJson(readBuffer);
+            if (!text.empty()) {
+                if (callback) {
+                    callback(text);
+                } else {
+                    blog(LOG_INFO, "Transcribed: %s", text.c_str());
+                    UpdateCaption(text);
+                }
+            }
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+    }
+}
+
+void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
+{
     // Build WAV in memory
     std::vector<uint8_t> wavData;
 
     uint32_t totalDataLen = pcmData.size() * 2;
     uint32_t riffChunkSize = 36 + totalDataLen;
-    uint32_t byteRate = sampleRate * 1 * 2; // rate * channels * bytesPerSample
+    uint32_t byteRate = sampleRate * 1 * 2;
 
     // RIFF
     wavData.insert(wavData.end(), {'R', 'I', 'F', 'F'});
@@ -140,27 +180,21 @@ void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
     wavData.insert(wavData.end(), {'d', 'a', 't', 'a'});
     wavData.insert(wavData.end(), (uint8_t*)&totalDataLen, (uint8_t*)&totalDataLen + 4);
 
-    // PCM data
     const uint8_t* pcmBytes = (const uint8_t*)pcmData.data();
     wavData.insert(wavData.end(), pcmBytes, pcmBytes + totalDataLen);
 
-    // Base64 encode
     std::string base64Audio = base64_encode(wavData.data(), wavData.size());
 
-    // Prepare JSON payload
-    // We use obs_data_t to construct JSON safely
     obs_data_t *root = obs_data_create();
     obs_data_array_t *contentsArray = obs_data_array_create();
     obs_data_t *contentItem = obs_data_create();
     obs_data_array_t *partsArray = obs_data_array_create();
 
-    // Text part
     obs_data_t *textPart = obs_data_create();
     obs_data_set_string(textPart, "text", "Transcribe the following audio to text. Output only the transcribed text, nothing else.");
     obs_data_array_push_back(partsArray, textPart);
     obs_data_release(textPart);
 
-    // Audio part
     obs_data_t *audioPart = obs_data_create();
     obs_data_t *inlineData = obs_data_create();
     obs_data_set_string(inlineData, "mimeType", "audio/wav");
@@ -172,53 +206,43 @@ void SendAudioToGemini(const std::vector<int16_t>& pcmData, int sampleRate)
 
     obs_data_set_array(contentItem, "parts", partsArray);
     obs_data_array_release(partsArray);
-
     obs_data_array_push_back(contentsArray, contentItem);
     obs_data_release(contentItem);
-
     obs_data_set_array(root, "contents", contentsArray);
     obs_data_array_release(contentsArray);
 
     const char *jsonOutput = obs_data_get_json(root);
     std::string jsonPayload(jsonOutput);
-
     obs_data_release(root);
 
-    CURL *curl;
-    CURLcode res;
-    std::string readBuffer;
+    PerformGeminiRequest(jsonPayload, nullptr);
+}
 
-    curl = curl_easy_init();
-    if(curl) {
-        std::string url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey;
+void SendTextQueryToGemini(const std::string& prompt, std::function<void(std::string)> callback)
+{
+    // Run in a thread to avoid blocking main thread (since this is called from TwitchBot on main thread)
+    std::thread([prompt, callback]() {
+        obs_data_t *root = obs_data_create();
+        obs_data_array_t *contentsArray = obs_data_array_create();
+        obs_data_t *contentItem = obs_data_create();
+        obs_data_array_t *partsArray = obs_data_array_create();
 
-        struct curl_slist *headers = NULL;
-        headers = curl_slist_append(headers, "Content-Type: application/json");
+        obs_data_t *textPart = obs_data_create();
+        obs_data_set_string(textPart, "text", prompt.c_str());
+        obs_data_array_push_back(partsArray, textPart);
+        obs_data_release(textPart);
 
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonPayload.c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        obs_data_set_array(contentItem, "parts", partsArray);
+        obs_data_array_release(partsArray);
+        obs_data_array_push_back(contentsArray, contentItem);
+        obs_data_release(contentItem);
+        obs_data_set_array(root, "contents", contentsArray);
+        obs_data_array_release(contentsArray);
 
-        // Timeout to prevent hanging
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+        const char *jsonOutput = obs_data_get_json(root);
+        std::string jsonPayload(jsonOutput);
+        obs_data_release(root);
 
-        res = curl_easy_perform(curl);
-
-        if(res != CURLE_OK) {
-            blog(LOG_ERROR, "Gemini API request failed: %s", curl_easy_strerror(res));
-        } else {
-            // Process response
-            std::string text = ExtractTextFromJson(readBuffer);
-            if (!text.empty()) {
-                blog(LOG_INFO, "Transcribed: %s", text.c_str());
-                UpdateCaption(text);
-            }
-        }
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-    }
+        PerformGeminiRequest(jsonPayload, callback);
+    }).detach();
 }
