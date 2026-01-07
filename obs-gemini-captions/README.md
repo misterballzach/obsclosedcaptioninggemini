@@ -37,7 +37,7 @@ Double-click `easy-build.bat`.
 
 **Option B: Manual Build**
 1.  Create build dir: `mkdir build` -> `cd build`
-2.  Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+2.  Configure: `cmake .. -A x64` (Let CMake auto-detect Visual Studio)
 3.  **Build Release:** `cmake --build . --config Release`
     *(Do NOT build Debug. It will not load in OBS.)*
 
@@ -78,3 +78,6 @@ If OBS shows an error saying the plugin failed to load:
 
 ### "Release folder missing?"
 If you only see a `Debug` folder inside `build`, you skipped the Release build step. Run `easy-build.bat`.
+
+### "Generator ... could not find any instance of Visual Studio"
+Ensure you have installed the **"Desktop development with C++"** workload in the Visual Studio Installer. CMake cannot find the compiler otherwise.

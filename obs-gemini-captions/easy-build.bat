@@ -22,11 +22,14 @@ if not exist "build" (
 cd build
 
 echo.
-echo [INFO] Configuring Project (Visual Studio 2022 x64)...
-cmake .. -G "Visual Studio 17 2022" -A x64
+echo [INFO] Configuring Project (Auto-detecting Visual Studio)...
+echo [NOTE] If this fails, ensure you have Visual Studio (C++ Desktop) installed.
+cmake .. -A x64
 if %errorlevel% neq 0 (
+    echo.
     echo [ERROR] Configuration failed.
-    echo Did you run 'setup-sdk.ps1' first?
+    echo 1. Check if Visual Studio with "Desktop development with C++" is installed.
+    echo 2. Check if you ran 'setup-sdk.ps1' successfully.
     cd ..
     pause
     exit /b 1
