@@ -29,34 +29,21 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
 
     **NOTE:** If you see CMake errors about "non-existent path" later, RUN THIS SCRIPT AGAIN.
 
-### Step 2: Build with CMake
+### Step 2: Build the Plugin
 
-1.  Create a build directory:
-    ```cmd
-    mkdir build
-    cd build
-    ```
-2.  Configure:
-    ```cmd
-    cmake .. -G "Visual Studio 17 2022" -A x64
-    ```
-3.  **Build (Release Mode ONLY):**
-    ⚠️ **IMPORTANT:** You must build in **Release** mode. Debug builds will fail to load in OBS!
+**Option A: The Easy Way (Recommended)**
+Double-click `easy-build.bat`.
+*This will configure the project and build the Release version automatically. It will open the folder containing the DLL when finished.*
 
-    **Option A: Command Line**
-    ```cmd
-    cmake --build . --config Release
-    ```
-
-    **Option B: Visual Studio**
-    1.  Open `obs-gemini-captions.sln` in the `build` folder.
-    2.  In the top toolbar, change **Debug** to **Release**.
-    3.  Right-click **obs-gemini-captions** in the Solution Explorer and select **Build**.
+**Option B: Manual Build**
+1.  Create build dir: `mkdir build` -> `cd build`
+2.  Configure: `cmake .. -G "Visual Studio 17 2022" -A x64`
+3.  **Build Release:** `cmake --build . --config Release`
+    *(Do NOT build Debug. It will not load in OBS.)*
 
 ### Step 3: Install/Run
 
 1.  **Locate the Plugin:**
-    *   If you built successfully, a new folder `Release` will appear inside `build`.
     *   Go to `build/Release/`.
     *   Find `obs-gemini-captions.dll`. (Do NOT copy `.exp`, `.lib`, or `.pdb` files).
 
@@ -84,17 +71,10 @@ Go to **Tools -> Gemini Captions** to configure your API Key and Twitch credenti
 
 ## Troubleshooting
 
-### "Plugin Load Error"
+### "Plugin Load Error" or "Module not loaded"
 If OBS shows an error saying the plugin failed to load:
-1.  **Check Build Mode:** Did you build in **Debug**? Standard OBS is a **Release** application. Loading a Debug plugin will fail because it looks for debug DLLs (like `Qt6Cored.dll`) that don't exist. **Rebuild in Release mode.**
-2.  **Check Dependencies:** Ensure you have the Visual C++ Redistributable installed (though if you have VS2022, you likely do).
-3.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
-
-### Advanced Checks
-If it still fails:
-1.  **Dependency Check:** Use `dumpbin /dependents obs-gemini-captions.dll` (in VS CMD) to see if it links to `Qt6Cored.dll` (bad) or `Qt6Core.dll` (good).
-2.  **Exports Check:** Use `dumpbin /exports obs-gemini-captions.dll`. You must see `obs_module_load`. If not, something is wrong with the code macros.
-3.  **Runtime Mismatch:** Ensure you are using `/MD` (Multi-threaded DLL) in Release. The CMake configuration in this repo enforces this.
+1.  **Check Build Mode:** You likely built in **Debug** mode. OBS requires **Release** mode plugins. Run `easy-build.bat` or rebuild with `--config Release`.
+2.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
 
 ### "Release folder missing?"
-If you only see a `Debug` folder, you skipped Step 2.3. You must explicitly run the build command with `--config Release` or use Visual Studio to build the Release configuration.
+If you only see a `Debug` folder inside `build`, you skipped the Release build step. Run `easy-build.bat`.
