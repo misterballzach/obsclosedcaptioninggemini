@@ -90,5 +90,11 @@ If OBS shows an error saying the plugin failed to load:
 2.  **Check Dependencies:** Ensure you have the Visual C++ Redistributable installed (though if you have VS2022, you likely do).
 3.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
 
+### Advanced Checks
+If it still fails:
+1.  **Dependency Check:** Use `dumpbin /dependents obs-gemini-captions.dll` (in VS CMD) to see if it links to `Qt6Cored.dll` (bad) or `Qt6Core.dll` (good).
+2.  **Exports Check:** Use `dumpbin /exports obs-gemini-captions.dll`. You must see `obs_module_load`. If not, something is wrong with the code macros.
+3.  **Runtime Mismatch:** Ensure you are using `/MD` (Multi-threaded DLL) in Release. The CMake configuration in this repo enforces this.
+
 ### "Release folder missing?"
 If you only see a `Debug` folder, you skipped Step 2.3. You must explicitly run the build command with `--config Release` or use Visual Studio to build the Release configuration.

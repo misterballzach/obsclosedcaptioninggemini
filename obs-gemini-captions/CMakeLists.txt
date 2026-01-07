@@ -9,6 +9,13 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Force MSVC Runtime to MultiThreadedDLL (/MD) for Release builds
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    add_compile_options($<$<CONFIG:Release>:/MD>)
+    add_compile_options($<$<CONFIG:Debug>:/MDd>)
+endif()
+
 # Add local cmake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
