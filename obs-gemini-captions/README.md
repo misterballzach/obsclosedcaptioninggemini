@@ -40,18 +40,34 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
     ```cmd
     cmake .. -G "Visual Studio 17 2022" -A x64
     ```
-3.  Build:
+3.  **Build (Release Mode ONLY):**
+    ⚠️ **IMPORTANT:** You must build in **Release** mode. Debug builds will fail to load in OBS!
     ```cmd
     cmake --build . --config Release
     ```
 
 ### Step 3: Install/Run
 
-Copy the built `obs-gemini-captions.dll` to your OBS plugins folder (usually `C:\Program Files\obs-studio\obs-plugins\64bit`), and copy the `data` folder to `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions`.
+1.  **Locate the Plugin:**
+    Go to `build/Release/`. You will see several files:
+    *   `obs-gemini-captions.dll`  (✅ **THIS is the plugin**)
+    *   `obs-gemini-captions.lib`  (❌ Ignore - build artifact)
+    *   `obs-gemini-captions.exp`  (❌ Ignore - build artifact)
+    *   `obs-gemini-captions.pdb`  (❌ Ignore - debug symbols)
+
+2.  **Copy the DLL:**
+    Copy `obs-gemini-captions.dll` to your OBS plugins folder:
+    `C:\Program Files\obs-studio\obs-plugins\64bit\`
+
+3.  **Copy the Data:**
+    Copy the `data` folder from the source repository to the OBS data folder:
+    From: `obs-gemini-captions/data`
+    To:   `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions`
+    *(The final path should contain `locale/en-US.ini`)*
 
 ## Features
 
-*   **Audio Capture:** Resamples source audio to 16kHz Mono.
+*   **Audio Capture:** Resamples source audio to 16kHz Mono using global OBS audio context.
 *   **Buffering:** Buffers 5 seconds of audio before sending to avoid rate limits.
 *   **Async Processing:** Uses background threads for network API calls.
 *   **Twitch Bot:** `!gemini <prompt>` in chat gets an AI response.
@@ -60,3 +76,14 @@ Copy the built `obs-gemini-captions.dll` to your OBS plugins folder (usually `C:
 ## Configuration
 
 Go to **Tools -> Gemini Captions** to configure your API Key and Twitch credentials.
+
+## Troubleshooting
+
+### "Plugin Load Error"
+If OBS shows an error saying the plugin failed to load:
+1.  **Check Build Mode:** Did you build in **Debug**? Standard OBS is a **Release** application. Loading a Debug plugin will fail because it looks for debug DLLs (like `Qt6Cored.dll`) that don't exist. **Rebuild in Release mode.**
+2.  **Check Dependencies:** Ensure you have the Visual C++ Redistributable installed (though if you have VS2022, you likely do).
+3.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
+
+### CMake Error: "Imported target... includes non-existent path"
+The SDK setup script didn't finish or the path changed. Run `setup-sdk.ps1` again.
