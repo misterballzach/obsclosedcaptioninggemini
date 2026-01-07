@@ -12,6 +12,7 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
 
 1.  **Visual Studio 2022** (with C++ Desktop Development workload).
 2.  **Qt 6** (ensure `Qt6Config.cmake` is in your PATH or CMake can find it).
+    *   *Note: The easy build script will ask for the path if needed.*
 3.  **CMake 3.16+**.
 
 ### Step 1: Generate the SDK
@@ -33,13 +34,14 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
 
 **Option A: The Easy Way (Recommended)**
 Double-click `easy-build.bat`.
-*This will configure the project and build the Release version automatically. It will open the folder containing the DLL when finished.*
+*   It will ask for your Qt path if not found.
+*   It will configure and build the Release version.
+*   It will open the output folder.
 
 **Option B: Manual Build**
-1.  Create build dir: `mkdir build` -> `cd build`
-2.  Configure: `cmake .. -A x64` (Let CMake auto-detect Visual Studio)
-3.  **Build Release:** `cmake --build . --config Release`
-    *(Do NOT build Debug. It will not load in OBS.)*
+1.  `mkdir build` -> `cd build`
+2.  `cmake .. -A x64` (Add `-DQt6_DIR="C:\Path\To\Qt\..."` if needed)
+3.  `cmake --build . --config Release`
 
 ### Step 3: Install/Run
 
@@ -71,13 +73,15 @@ Go to **Tools -> Gemini Captions** to configure your API Key and Twitch credenti
 
 ## Troubleshooting
 
-### "Plugin Load Error" or "Module not loaded"
+### "Could not find a package configuration file provided by Qt6"
+CMake cannot find your Qt installation.
+1.  Run `easy-build.bat`.
+2.  When prompted, paste the full path to your Qt CMake folder (e.g., `C:\Qt\6.6.2\msvc2019_64\lib\cmake\Qt6`).
+
+### "Plugin Load Error"
 If OBS shows an error saying the plugin failed to load:
-1.  **Check Build Mode:** You likely built in **Debug** mode. OBS requires **Release** mode plugins. Run `easy-build.bat` or rebuild with `--config Release`.
+1.  **Check Build Mode:** You likely built in **Debug** mode. OBS requires **Release** mode plugins. Run `easy-build.bat`.
 2.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
 
 ### "Release folder missing?"
 If you only see a `Debug` folder inside `build`, you skipped the Release build step. Run `easy-build.bat`.
-
-### "Generator ... could not find any instance of Visual Studio"
-Ensure you have installed the **"Desktop development with C++"** workload in the Visual Studio Installer. CMake cannot find the compiler otherwise.
