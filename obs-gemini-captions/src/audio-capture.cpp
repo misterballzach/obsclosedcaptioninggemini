@@ -2,6 +2,7 @@
 #include "gemini-client.h"
 #include <obs.h>
 #include <obs-source.h>
+#include <media-io/audio-io.h>
 #include <QDebug>
 #include <QMutexLocker>
 #include <vector>
@@ -38,7 +39,7 @@ void AudioCapture::startCapture(const QString &sourceName) {
         currentAudioSource = source;
 
         // Use Global Audio Info (OBS 32+)
-        // Correct signature: const audio_output_info *audio_output_get_info(const audio_t *audio);
+        // Signature: const audio_output_info *audio_output_get_info(const audio_t *audio);
         const struct audio_output_info *info = audio_output_get_info(obs_get_audio());
 
         if (info) {
@@ -55,8 +56,7 @@ void AudioCapture::startCapture(const QString &sourceName) {
             // Clear buffer on start
             audioBuffer.clear();
         } else {
-             qWarning() << "Failed to get audio output info from OBS";
-             // Can't capture if we don't know the format
+             qWarning() << "Failed to get audio info from OBS";
         }
 
     } else {
@@ -81,34 +81,61 @@ void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *d
         return;
     }
 
-    // Naive Float to Int16 Conversion
-    // We assume the Gemini Client will handle the sample rate in header, or the API is tolerant.
+    // We need to convert Source Rate (Float) -> 16kHz (Int16)
+    // Simple Linear Resampler logic
 
     // NOTE: OBS audio is planar float. data->data[0] is channel 1.
     const float* floatSamples = (const float*)data->data[0];
-    size_t frames = data->frames;
+    uint32_t inputFrames = data->frames;
 
-    std::vector<int16_t> newSamples(frames);
-    for (size_t i = 0; i < frames; i++) {
-        float sample = floatSamples[i];
-        if (sample > 1.0f) sample = 1.0f;
-        if (sample < -1.0f) sample = -1.0f;
-        newSamples[i] = (int16_t)(sample * 32767.0f);
+    const int TARGET_RATE = 16000;
+
+    // Calculate output size
+    // Ratio = In / Out
+    double ratio = (double)cachedSampleRate / (double)TARGET_RATE;
+
+    // Est output frames
+    size_t outputFrames = (size_t)(inputFrames / ratio);
+    if (outputFrames == 0) return; // Not enough input
+
+    std::vector<int16_t> resampledSamples;
+    resampledSamples.reserve(outputFrames);
+
+    // Simple Linear Interpolation
+    for (size_t i = 0; i < outputFrames; ++i) {
+        double srcIndex = i * ratio;
+        size_t idx0 = (size_t)srcIndex;
+        size_t idx1 = idx0 + 1;
+
+        if (idx1 >= inputFrames) idx1 = idx0; // Clamp
+
+        float frac = (float)(srcIndex - idx0);
+
+        float s0 = floatSamples[idx0];
+        float s1 = floatSamples[idx1];
+
+        float val = s0 + (s1 - s0) * frac;
+
+        // Clamp and Convert
+        if (val > 1.0f) val = 1.0f;
+        if (val < -1.0f) val = -1.0f;
+
+        resampledSamples.push_back((int16_t)(val * 32767.0f));
     }
 
     // Append to buffer
     QMutexLocker locker(&mutex);
-    audioBuffer.insert(audioBuffer.end(), newSamples.begin(), newSamples.end());
+    audioBuffer.insert(audioBuffer.end(), resampledSamples.begin(), resampledSamples.end());
 
-    // Check size (Target 5 seconds approx)
-    size_t targetSamples = (size_t)(5.0 * cachedSampleRate);
+    // Check size (Target 5 seconds at 16kHz)
+    size_t targetBufferSamples = 5 * TARGET_RATE; // 80000 samples
 
-    if (audioBuffer.size() >= targetSamples) {
+    if (audioBuffer.size() >= targetBufferSamples) {
         // Emit
         int byteSize = audioBuffer.size() * sizeof(int16_t);
         QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
 
-        emit audioPacketReady(pcmData, (int)cachedSampleRate);
+        emit audioPacketReady(pcmData, TARGET_RATE);
 
         audioBuffer.clear();
     }

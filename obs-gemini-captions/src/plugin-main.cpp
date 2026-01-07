@@ -320,14 +320,20 @@ bool obs_module_load(void)
     // Updated signature: name, callback, private_data
     obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig, nullptr);
 
-    // Create Dock - DISABLED for OBS 32.0.4 compatibility (api removed)
-    // QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
-    // captionDock = new CaptionDock(main);
-    // obs_frontend_add_dock(captionDock);
+    // Create Dock - Native Qt method for OBS 32+
+    QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
+    captionDock = new CaptionDock(main);
+
+    // OBS usually puts docks in a specific area, Bottom is fine for captions
+    main->addDockWidget(Qt::BottomDockWidgetArea, captionDock);
+
+    // We should allow the user to toggle it.
+    // Usually adding a dock widget to QMainWindow automatically adds it to the context menu of docks.
+    // So explicit menu registration might not be strictly needed if native parenting works correctly.
+    // We ensure it is shown by default.
+    captionDock->show();
 
     // Initialize Twitch Bot (lived on main thread)
-    // We need a parent. obs_frontend_get_main_window is still available if header is included.
-    QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
     twitchBot = new TwitchBot(main);
 
     // Load initial settings
@@ -356,6 +362,18 @@ void obs_module_unload(void)
     if (twitchBot) {
         delete twitchBot;
         twitchBot = nullptr;
+    }
+    // Dock is owned by Main Window (parent), so it cleans up itself usually,
+    // but we can be safe:
+    if (captionDock) {
+        // If we don't delete it, it might persist? OBS reloads plugins?
+        // Usually safer to let Qt parent handle it or delete explicitly if we owned it.
+        // Since we parented to main, main will delete it.
+        // But if module unloads and main stays open (rare for OBS?), we should remove it.
+        QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
+        if (main) main->removeDockWidget(captionDock);
+        delete captionDock;
+        captionDock = nullptr;
     }
 }
 
