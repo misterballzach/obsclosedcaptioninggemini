@@ -42,18 +42,23 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
     ```
 3.  **Build (Release Mode ONLY):**
     ⚠️ **IMPORTANT:** You must build in **Release** mode. Debug builds will fail to load in OBS!
+
+    **Option A: Command Line**
     ```cmd
     cmake --build . --config Release
     ```
 
+    **Option B: Visual Studio**
+    1.  Open `obs-gemini-captions.sln` in the `build` folder.
+    2.  In the top toolbar, change **Debug** to **Release**.
+    3.  Right-click **obs-gemini-captions** in the Solution Explorer and select **Build**.
+
 ### Step 3: Install/Run
 
 1.  **Locate the Plugin:**
-    Go to `build/Release/`. You will see several files:
-    *   `obs-gemini-captions.dll`  (✅ **THIS is the plugin**)
-    *   `obs-gemini-captions.lib`  (❌ Ignore - build artifact)
-    *   `obs-gemini-captions.exp`  (❌ Ignore - build artifact)
-    *   `obs-gemini-captions.pdb`  (❌ Ignore - debug symbols)
+    *   If you built successfully, a new folder `Release` will appear inside `build`.
+    *   Go to `build/Release/`.
+    *   Find `obs-gemini-captions.dll`. (Do NOT copy `.exp`, `.lib`, or `.pdb` files).
 
 2.  **Copy the DLL:**
     Copy `obs-gemini-captions.dll` to your OBS plugins folder:
@@ -85,5 +90,5 @@ If OBS shows an error saying the plugin failed to load:
 2.  **Check Dependencies:** Ensure you have the Visual C++ Redistributable installed (though if you have VS2022, you likely do).
 3.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
 
-### CMake Error: "Imported target... includes non-existent path"
-The SDK setup script didn't finish or the path changed. Run `setup-sdk.ps1` again.
+### "Release folder missing?"
+If you only see a `Debug` folder, you skipped Step 2.3. You must explicitly run the build command with `--config Release` or use Visual Studio to build the Release configuration.
