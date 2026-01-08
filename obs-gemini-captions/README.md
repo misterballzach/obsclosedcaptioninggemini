@@ -1,5 +1,10 @@
 # OBS Gemini Captions Plugin
 
+**NEW: Streamer.bot Version Available!**
+If you are having trouble building this C++ plugin, check out the **[Streamer.bot Integration](../streamerbot/README.md)**. It uses a simple C# script inside Streamer.bot, requires NO compilation, and works with any OBS version.
+
+---
+
 A C++ plugin for OBS Studio that provides closed captioning using the Google Gemini API (1.5 Flash). It captures audio from a selected source, transcribes it, and outputs captions to the stream (CEA-608) and a local dock.
 
 Also includes a Twitch Bot that responds to `!gemini` in chat.
