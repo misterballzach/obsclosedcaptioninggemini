@@ -83,6 +83,10 @@ void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *d
 
     // We need to convert Source Rate (Float) -> 16kHz (Int16)
     // Simple Linear Resampler logic
+    // NOTE: While libobs has an audio-resampler, headers (media-io/audio-resampler.h)
+    // are not always exposed in binary SDKs for plugins.
+    // A manual linear resampler is sufficient for speech recognition (16kHz)
+    // and avoids dependency hell.
 
     // NOTE: OBS audio is planar float. data->data[0] is channel 1.
     const float* floatSamples = (const float*)data->data[0];

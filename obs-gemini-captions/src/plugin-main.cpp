@@ -321,6 +321,8 @@ bool obs_module_load(void)
     obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig, nullptr);
 
     // Create Dock - Native Qt method for OBS 32+
+    // Note: 'obs_frontend_add_dock_by_id' exists in some versions, but direct Qt parenting
+    // is more robust against API changes in the frontend wrapper.
     QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
     captionDock = new CaptionDock(main);
 
