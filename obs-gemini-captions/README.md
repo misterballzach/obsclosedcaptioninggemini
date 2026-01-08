@@ -4,6 +4,13 @@ A C++ plugin for OBS Studio that provides closed captioning using the Google Gem
 
 Also includes a Twitch Bot that responds to `!gemini` in chat.
 
+## ⚠️ CRITICAL COMPATIBILITY NOTE
+
+**Qt Version Mismatch:**
+This plugin links against Qt 6. OBS Studio 32.0.4 uses **Qt 6.8**.
+You **MUST** build this plugin using a Qt version compatible with 6.8 (e.g., 6.8.x, 6.7.x, or sometimes older 6.x).
+If you build with a *newer* Qt (e.g., bleeding edge 6.10), the plugin will **FAIL TO LOAD** in OBS.
+
 ## ⚠️ CRITICAL BUILD INSTRUCTIONS ⚠️
 
 **You MUST follow these steps to build, as OBS 32.0.4+ does not have a standard SDK download.**
@@ -11,8 +18,7 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
 ### Prerequisites
 
 1.  **Visual Studio 2022** (with C++ Desktop Development workload).
-2.  **Qt 6** (ensure `Qt6Config.cmake` is in your PATH or CMake can find it).
-    *   *Note: The easy build script will ask for the path if needed.*
+2.  **Qt 6.8** (Recommended).
 3.  **CMake 3.16+**.
 
 ### Step 1: Generate the SDK
@@ -32,32 +38,20 @@ Also includes a Twitch Bot that responds to `!gemini` in chat.
 
 ### Step 2: Build the Plugin
 
-**Option A: The Easy Way (Recommended)**
+**The Easy Way (Recommended)**
 Double-click `easy-build.bat`.
 *   It will ask for your Qt path if not found.
-*   It will configure and build the Release version.
-*   It will open the output folder.
+*   It will configure and build the **Release** version automatically.
 
-**Option B: Manual Build**
-1.  `mkdir build` -> `cd build`
-2.  `cmake .. -A x64` (Add `-DQt6_DIR="C:\Path\To\Qt\..."` if needed)
-3.  `cmake --build . --config Release`
+### Step 3: Install
 
-### Step 3: Install/Run
+**The Easy Way**
+Right-click `install-plugin.bat` and select **Run as Administrator**.
+*   It will copy the DLL and Data files to your OBS installation.
 
-1.  **Locate the Plugin:**
-    *   Go to `build/Release/`.
-    *   Find `obs-gemini-captions.dll`. (Do NOT copy `.exp`, `.lib`, or `.pdb` files).
-
-2.  **Copy the DLL:**
-    Copy `obs-gemini-captions.dll` to your OBS plugins folder:
-    `C:\Program Files\obs-studio\obs-plugins\64bit\`
-
-3.  **Copy the Data:**
-    Copy the `data` folder from the source repository to the OBS data folder:
-    From: `obs-gemini-captions/data`
-    To:   `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions`
-    *(The final path should contain `locale/en-US.ini`)*
+**Manual Install**
+1.  Copy `build/Release/obs-gemini-captions.dll` to `C:\Program Files\obs-studio\obs-plugins\64bit\`.
+2.  Copy `data` folder to `C:\Program Files\obs-studio\data\obs-plugins\obs-gemini-captions`.
 
 ## Features
 
@@ -73,15 +67,11 @@ Go to **Tools -> Gemini Captions** to configure your API Key and Twitch credenti
 
 ## Troubleshooting
 
-### "Could not find a package configuration file provided by Qt6"
-CMake cannot find your Qt installation.
-1.  Run `easy-build.bat`.
-2.  When prompted, paste the full path to your Qt CMake folder (e.g., `C:\Qt\6.6.2\msvc2019_64\lib\cmake\Qt6`).
-
 ### "Plugin Load Error"
 If OBS shows an error saying the plugin failed to load:
 1.  **Check Build Mode:** You likely built in **Debug** mode. OBS requires **Release** mode plugins. Run `easy-build.bat`.
-2.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
+2.  **Check Qt Version:** If you built against Qt 6.10+ but are running OBS with Qt 6.8, it will fail. Install Qt 6.8 and rebuild (delete `build` folder first).
+3.  **Check Path:** Ensure `obs-gemini-captions.dll` is in `obs-plugins/64bit`.
 
 ### "Release folder missing?"
 If you only see a `Debug` folder inside `build`, you skipped the Release build step. Run `easy-build.bat`.
