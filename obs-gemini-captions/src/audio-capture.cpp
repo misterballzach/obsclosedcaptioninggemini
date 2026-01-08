@@ -3,6 +3,7 @@
 #include <obs.h>
 #include <obs-source.h>
 #include <media-io/audio-io.h>
+#include <media-io/audio-resampler.h>
 #include <QDebug>
 #include <QMutexLocker>
 #include <vector>
@@ -10,7 +11,7 @@
 // Forward declare helper
 GeminiClient* GetGlobalGeminiClient();
 
-AudioCapture::AudioCapture(QObject *parent) : QObject(parent) {
+AudioCapture::AudioCapture(QObject *parent) : QObject(parent), resampler(nullptr) {
     // Reserve buffer space (16kHz * 5s)
     audioBuffer.reserve(16000 * 5);
 }
@@ -39,7 +40,6 @@ void AudioCapture::startCapture(const QString &sourceName) {
         currentAudioSource = source;
 
         // Use Global Audio Info (OBS 32+)
-        // Signature: const audio_output_info *audio_output_get_info(const audio_t *audio);
         const struct audio_output_info *info = audio_output_get_info(obs_get_audio());
 
         if (info) {
@@ -49,6 +49,22 @@ void AudioCapture::startCapture(const QString &sourceName) {
             qDebug() << "Started audio capture on source:" << sourceName
                      << "Global Rate:" << cachedSampleRate
                      << "Global Layout:" << cachedSpeakers;
+
+            // Initialize Resampler
+            struct resample_info srcInfo;
+            srcInfo.samples_per_sec = cachedSampleRate;
+            srcInfo.format = AUDIO_FORMAT_FLOAT_PLANAR; // OBS internal format
+            srcInfo.speakers = cachedSpeakers;
+
+            struct resample_info dstInfo;
+            dstInfo.samples_per_sec = 16000;
+            dstInfo.format = AUDIO_FORMAT_16BIT;
+            dstInfo.speakers = SPEAKERS_MONO;
+
+            resampler = audio_resampler_create(&dstInfo, &srcInfo);
+            if (!resampler) {
+                qWarning() << "Failed to create audio resampler";
+            }
 
             obs_source_add_audio_capture_callback(source, audioCallback, this);
             capturing = true;
@@ -71,77 +87,44 @@ void AudioCapture::stopCapture() {
         obs_source_release(currentAudioSource);
         currentAudioSource = nullptr;
     }
+    if (resampler) {
+        audio_resampler_destroy(resampler);
+        resampler = nullptr;
+    }
     capturing = false;
     audioBuffer.clear();
     qDebug() << "Stopped audio capture";
 }
 
 void AudioCapture::processAudio(obs_source_t *source, const struct audio_data *data) {
-    if (cachedSampleRate == 0 || cachedSpeakers == SPEAKERS_UNKNOWN) {
-        return;
-    }
+    if (!resampler) return;
 
-    // We need to convert Source Rate (Float) -> 16kHz (Int16)
-    // Simple Linear Resampler logic
-    // NOTE: While libobs has an audio-resampler, headers (media-io/audio-resampler.h)
-    // are not always exposed in binary SDKs for plugins.
-    // A manual linear resampler is sufficient for speech recognition (16kHz)
-    // and avoids dependency hell.
+    uint8_t *outputData[MAX_AV_PLANES];
+    uint32_t outFrames;
+    uint64_t ts_offset;
 
-    // NOTE: OBS audio is planar float. data->data[0] is channel 1.
-    const float* floatSamples = (const float*)data->data[0];
-    uint32_t inputFrames = data->frames;
+    // Resample using libobs built-in resampler
+    if (audio_resampler_resample(resampler, outputData, &outFrames, &ts_offset,
+                                 (const uint8_t *const *)data->data, data->frames)) {
 
-    const int TARGET_RATE = 16000;
+        // outputData[0] contains 16-bit 16kHz Mono PCM
+        const int16_t* pcmSamples = reinterpret_cast<const int16_t*>(outputData[0]);
 
-    // Calculate output size
-    // Ratio = In / Out
-    double ratio = (double)cachedSampleRate / (double)TARGET_RATE;
+        QMutexLocker locker(&mutex);
+        audioBuffer.insert(audioBuffer.end(), pcmSamples, pcmSamples + outFrames);
 
-    // Est output frames
-    size_t outputFrames = (size_t)(inputFrames / ratio);
-    if (outputFrames == 0) return; // Not enough input
+        // Check size (Target 5 seconds at 16kHz)
+        size_t targetBufferSamples = 5 * 16000; // 80000 samples
 
-    std::vector<int16_t> resampledSamples;
-    resampledSamples.reserve(outputFrames);
+        if (audioBuffer.size() >= targetBufferSamples) {
+            // Emit
+            int byteSize = audioBuffer.size() * sizeof(int16_t);
+            QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
 
-    // Simple Linear Interpolation
-    for (size_t i = 0; i < outputFrames; ++i) {
-        double srcIndex = i * ratio;
-        size_t idx0 = (size_t)srcIndex;
-        size_t idx1 = idx0 + 1;
+            emit audioPacketReady(pcmData, 16000);
 
-        if (idx1 >= inputFrames) idx1 = idx0; // Clamp
-
-        float frac = (float)(srcIndex - idx0);
-
-        float s0 = floatSamples[idx0];
-        float s1 = floatSamples[idx1];
-
-        float val = s0 + (s1 - s0) * frac;
-
-        // Clamp and Convert
-        if (val > 1.0f) val = 1.0f;
-        if (val < -1.0f) val = -1.0f;
-
-        resampledSamples.push_back((int16_t)(val * 32767.0f));
-    }
-
-    // Append to buffer
-    QMutexLocker locker(&mutex);
-    audioBuffer.insert(audioBuffer.end(), resampledSamples.begin(), resampledSamples.end());
-
-    // Check size (Target 5 seconds at 16kHz)
-    size_t targetBufferSamples = 5 * TARGET_RATE; // 80000 samples
-
-    if (audioBuffer.size() >= targetBufferSamples) {
-        // Emit
-        int byteSize = audioBuffer.size() * sizeof(int16_t);
-        QByteArray pcmData(reinterpret_cast<const char*>(audioBuffer.data()), byteSize);
-
-        emit audioPacketReady(pcmData, TARGET_RATE);
-
-        audioBuffer.clear();
+            audioBuffer.clear();
+        }
     }
 }
 

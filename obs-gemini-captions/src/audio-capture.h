@@ -7,6 +7,7 @@
 #include <vector>
 
 struct audio_data;
+struct audio_resampler;
 
 class AudioCapture : public QObject {
     Q_OBJECT
@@ -33,6 +34,9 @@ private:
     // Cached audio format
     uint32_t cachedSampleRate = 0;
     enum speaker_layout cachedSpeakers = SPEAKERS_UNKNOWN;
+
+    // Resampler
+    audio_resampler *resampler = nullptr;
 
     // Buffer for accumulation
     std::vector<int16_t> audioBuffer;

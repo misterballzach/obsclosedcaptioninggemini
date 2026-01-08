@@ -321,19 +321,11 @@ bool obs_module_load(void)
     obs_frontend_add_tools_menu_item("Gemini Captions", ShowConfig, nullptr);
 
     // Create Dock - Native Qt method for OBS 32+
-    // Note: 'obs_frontend_add_dock_by_id' exists in some versions, but direct Qt parenting
-    // is more robust against API changes in the frontend wrapper.
+    // REFACTOR: Use obs_frontend_add_dock_by_id as per reference plugin
     QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
     captionDock = new CaptionDock(main);
 
-    // OBS usually puts docks in a specific area, Bottom is fine for captions
-    main->addDockWidget(Qt::BottomDockWidgetArea, captionDock);
-
-    // We should allow the user to toggle it.
-    // Usually adding a dock widget to QMainWindow automatically adds it to the context menu of docks.
-    // So explicit menu registration might not be strictly needed if native parenting works correctly.
-    // We ensure it is shown by default.
-    captionDock->show();
+    obs_frontend_add_dock_by_id("gemini_captions_dock", obs_module_text("GeminiCaptions"), captionDock);
 
     // Initialize Twitch Bot (lived on main thread)
     twitchBot = new TwitchBot(main);
@@ -365,18 +357,9 @@ void obs_module_unload(void)
         delete twitchBot;
         twitchBot = nullptr;
     }
-    // Dock is owned by Main Window (parent), so it cleans up itself usually,
-    // but we can be safe:
-    if (captionDock) {
-        // If we don't delete it, it might persist? OBS reloads plugins?
-        // Usually safer to let Qt parent handle it or delete explicitly if we owned it.
-        // Since we parented to main, main will delete it.
-        // But if module unloads and main stays open (rare for OBS?), we should remove it.
-        QMainWindow *main = (QMainWindow*)obs_frontend_get_main_window();
-        if (main) main->removeDockWidget(captionDock);
-        delete captionDock;
-        captionDock = nullptr;
-    }
+    // Note: With obs_frontend_add_dock_by_id, OBS manages the dock lifetime partially,
+    // but the widget itself is owned by us (or QMainWindow).
+    // The reference plugin doesn't explicit delete it in unload, but QT parent cleanup handles it.
 }
 
 std::string GetGeminiAPIKey() {
